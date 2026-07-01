@@ -1,0 +1,1237 @@
+# -*- coding: utf-8 -*-
+"""
+IGSA · Gestão de Prazos Preclusivos — Imaculada Gordiano Sociedade de Advogados
+Controladoria Jurídica
+
+App Streamlit único. UI redesenhada (barra lateral vinho/dourado, Visão Geral com
+dois layouts, cards, gráficos limpos e tabela "Prazos por responsável") sobre o
+pipeline de dados real (upload LegalOne .xlsx → validação → seleção de coordenador
+→ publicação com commit no GitHub → exportações openpyxl).
+
+Toda a lógica de negócio segue o "Manual de Configuração — Revisão 2 (Junho/2026)".
+Os pontos de configuração citados no manual (seção 18) estão reunidos no bloco
+CONSTANTES abaixo.
+"""
+import streamlit as st
+import pandas as pd
+import numpy as np
+import json, re, io, os, base64
+from datetime import datetime, date
+
+import openpyxl
+from openpyxl.styles import PatternFill, Font, Alignment
+from openpyxl.utils import get_column_letter
+
+st.set_page_config(
+    page_title="IGSA · Gestão de Prazos",
+    page_icon="⚖️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# ════════════════════════════════════════════════════════════════════════════
+# CONSTANTES — configurações do manual (seção 18: editar aqui)
+# ════════════════════════════════════════════════════════════════════════════
+
+# 18-A/B · Mapa coordenador → executores (o coordenador também é executor de si).
+# Variações de acento listadas nas duas grafias (o LegalOne às vezes exporta sem acento).
+COORD_MAP = {
+    "JULIANA MIRELLA ALVES RODRIGUES": [
+        "JULIANA MIRELLA ALVES RODRIGUES", "ARTHUR MASSARI", "DANIEL BARROS DE OLIVEIRA",
+        "GUSTAVO LOPES ALENCAR FILHO", "KELIANE DE OLIVEIRA", "MONIQUE DE KAROLIN SILVA DA COSTA",
+        "NATALIA PAIVA DE PAULA", "ROBERTA RAYANNE VASCONCELOS BOTO",
+        "THALLYS ANDERSON FERREIRA DE LIMA", "VICTOR EMANOEL FRADIQUE ACCIOLY FONTENELE"],
+    "GABRIEL GIORGIO CICCHELERO": [
+        "GABRIEL GIORGIO CICCHELERO", "ALYSSON NARBAL DE OLIVEIRA SOMBRA",
+        "ANA VITORIA SALES DE OLIVEIRA FALCAO", "DALILA DRISANA GOMES GONCALVES", "JAMILE BARRETO",
+        "JULIANA DE OLIVEIRA ROCHA", "RAFAEL CAVALCANTE BARBOSA", "RODRIGO RIBEIRO ANTUNES QUARIGUASI"],
+    "SUZANA MARIA CAMPOS MARANHAO DE LIMA": [
+        "SUZANA MARIA CAMPOS MARANHAO DE LIMA", "SUZANA MARIA CAMPOS MARANHÃO DE LIMA",
+        "EVILANY GABRIELA BRAGA PONTES", "FRANCOISE CATHERINE SOUZA ALVES", "GIOVANNA CAMPOS PEREIRA",
+        "MATHEUS CAVALCANTI DE ARAUJO", "TATIANE CARMO SANTA ROSA"],
+    "YURI ALVES BARROS DOS SANTOS": [
+        "YURI ALVES BARROS DOS SANTOS", "JÚLIA MENEZES MORGADO", "JULIA MENEZES MORGADO",
+        "LUIZ GUILHERME GONCALVES GIRAO"],
+    "NAYANDERSON LUAN MELLO PINHEIRO": [
+        "NAYANDERSON LUAN MELLO PINHEIRO", "ANDRE VIANA GARRIDO", "EMERSON DE ALMEIDA MELO JUNIOR",
+        "EMERSON DE ALMEIDA MELO JÚNIOR", "EMERSON TRAVASSOS TORQUATO", "JEAN VICTOR NUNES SARAIVA"],
+    "RONALD FEITOSA AGUIAR FILHO": [
+        "RONALD FEITOSA AGUIAR FILHO", "ALEXIA ALENCAR CAPIBARIBE"],
+    "LUCIANE MODERNEL MENDES": [
+        "LUCIANE MODERNEL MENDES", "ANTONIO EDUARDO GOES AGUIAR FILHO", "ERIKA PAULA SANTOS LIMA",
+        "SANE BORGES BORGOMONI"],
+    "JENIFFER ROSA BARBOSA DE SALES": [
+        "JENIFFER ROSA BARBOSA DE SALES", "PAULO MARCIO SOARES DE CARVALHO FILHO"],
+    "MARCELLE LEITE RENTROIA": [
+        "MARCELLE LEITE RENTROIA", "MARIANA MOTA FROTA", "YASMIM GORDIANO BARBOSA"],
+    "CAMILLA GOES BARBOSA": ["CAMILLA GOES BARBOSA"],
+    "HELANZIA DE ARAUJO XAVIER WICHAMNN": [
+        "HELANZIA DE ARAUJO XAVIER WICHAMNN", "HELANZIA DE ARAUJO XAVIER WICHMANN"],
+    "TICIANNA PIRES DE SOUZA": ["TICIANNA PIRES DE SOUZA"],
+    "TATIANA KOGAN": ["VANESSA NUNES HOLANDA"],
+}
+# Coordenador exibido com nome alternativo no painel (seção 7).
+COORD_DISPLAY = {"TATIANA KOGAN": "CONTROLADORIA JURÍDICA"}
+
+# Observação (manual §9 / 18-C): o conceito de "responsáveis inativos" foi
+# DESCONTINUADO a pedido da Controladoria. Não há filtro por status de responsável
+# nem pela coluna Status da planilha — todo registro dentro do recorte de datas entra.
+
+# 18-D · Responsáveis/coordenadores excluídos de TODAS as visualizações públicas
+# (Visão Geral, Por Coordenação, Auditoria e Exportação) — seção 10. Todas as grafias.
+EXCLUDED_SET = {
+    "TATIANA KOGAN", "APARECIDO", "CAMILLA GOES BARBOSA", "MARIA LAURA MELO ALMEIDA",
+    "IRENE FLÁVIA SERENÁRIO", "IRENE FLAVIA SERENARIO", "IRENE FLÁVIA SERENARIO",
+}
+# 18-E · Coordenações inteiramente ocultas do painel público (seção 11).
+HIDDEN_COORDS = {"CAMILLA GOES BARBOSA", "TATIANA KOGAN"}
+
+# Seção 2 · Colunas obrigatórias da planilha exportada do LegalOne.
+# A coluna de tipo pode vir como "Tipo" (antiga) ou "Tipo - Subtipo" (nova) — ver TIPO_COLS.
+COLUNAS_ESPERADAS = ["Id", "Tipo", "Descrição", "Conclusão prevista",
+                     "Responsável processo", "Pasta", "Status"]
+
+# 18-G · Feriados nacionais 2026 (seção 4). Carnaval/Corpus Christi NÃO entram.
+# Ao virar o ano, duplique esta lista com o novo ano e atualize HOLIDAYS_NP.
+HOLIDAYS_2026 = ["2026-01-01", "2026-04-21", "2026-05-01", "2026-09-07",
+                 "2026-10-12", "2026-11-02", "2026-11-15", "2026-12-25"]
+HOLIDAYS_NP = np.array(HOLIDAYS_2026, dtype="datetime64[D]")
+
+# 18-H · Horizonte do filtro de datas (seção 3). Padrão do manual: DU <= 1.
+#   DU_LIMIT = 1  → inclui vencidos (<0) + hoje (0) + D-1 (1)   [padrão]
+#   DU_LIMIT = 0  → apenas vencidos + hoje
+#   DU_LIMIT = 2  → amplia para dois dias úteis à frente
+DU_LIMIT = 1
+
+# 18-I · Repositório GitHub de publicação.
+GITHUB_REPO = "tatiikogan-beep/Gestao-Prazos-IGSA"
+
+DATA_FILE = "dados_publicados.json"
+
+# Rótulo especial para responsáveis sem vínculo de coordenador (seções 6/8).
+SEM_COORD = "SEM COORDENADOR"
+
+# Índice reverso executor → coordenador (derivado do COORD_MAP).
+RESP_TO_COORD = {}
+for _coord, _members in COORD_MAP.items():
+    for _m in _members:
+        RESP_TO_COORD[_m] = _coord
+
+# ---- Paleta (design system vinho/dourado) ----
+CLR_HEADER = "7E1F2D"; CLR_HEADER_TXT = "FFFFFF"
+CLR_VERDE = "C6EFCE"; CLR_AMARELO = "FFEB9C"
+CLR_ROSA = "FFC7CE"; CLR_VERM = "E57373"; CLR_VERM_TXT = "FFFFFF"   # seção 13: DU<0 = #E57373
+CLR_LARANJA = "FFCC99"; CLR_GOLD = "CDA736"; CLR_GOLD_TXT = "FFFFFF"
+
+WINE = "#7E1F2D"; WINE_DARK = "#641828"; WINE_LIGHT = "#9B2335"
+GOLD = "#CDA736"; GOLD_DARK = "#8E6E1C"; INK = "#2A2420"; SAND = "#F7F2E9"
+GREEN = "#2E9E5B"
+WINE_COLORS = ["#641828", "#7E1F2D", "#9B2335", "#B83A4C", "#C85A6A", "#D97A88", "#E8A0A8"]
+MULTI_COLORS = ["#7E1F2D", "#CDA736", "#2E9E5B", "#BE5862", "#8E6E1C", "#651823",
+                "#43B26C", "#D8868E", "#9E3340", "#B08A26"]
+
+TIPOS_CONHECIDOS = ["Prazo", "Audiência", "Diversos", "Pauta de Julgamento", "Perícia", "Publicação"]
+
+# Mapa Tipo-base → tipo normalizado (seção 12). O valor bruto vem como "Tipo - Subtipo".
+# O tipo-base é a parte antes do 1º hífen (o base nunca contém hífen); o subtipo é o resto.
+TIPO_BASE_MAP = {
+    "Prazo": "Prazo", "Audiência": "Audiência", "Diversos": "Diversos",
+    "Diligência externa": "Diversos", "Serviço": "Diversos", "Workflow": "Diversos",
+    "Pauta de Julgamento": "Pauta de Julgamento", "Perícia": "Perícia", "Publicação": "Publicação",
+}
+# Colunas que podem trazer o tipo (a exportação nova usa "Tipo - Subtipo").
+TIPO_COLS = ("Tipo - Subtipo", "Tipo")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# HELPERS
+# ════════════════════════════════════════════════════════════════════════════
+def fmt_num(n):
+    try:
+        return f"{int(n):,}".replace(",", ".")
+    except (TypeError, ValueError):
+        return str(n)
+
+
+def busdays(d_from, d_to):
+    """Dias úteis entre duas datas, excluindo fins de semana e feriados nacionais."""
+    try:
+        return int(np.busday_count(np.datetime64(d_from, "D"),
+                                   np.datetime64(d_to, "D"), holidays=HOLIDAYS_NP))
+    except Exception:
+        return None
+
+
+def parse_date(val):
+    if val is None:
+        return None
+    if isinstance(val, (datetime, date)):
+        return val.date() if isinstance(val, datetime) else val
+    s = str(val).strip()
+    if s in ("", "nan", "NaT", "None"):
+        return None
+    for f in ["%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y", "%Y-%m-%d %H:%M:%S"]:
+        try:
+            return datetime.strptime(s[:len(f) if "%H" not in f else 19], f).date()
+        except Exception:
+            pass
+    try:
+        return pd.to_datetime(s, dayfirst=True).date()
+    except Exception:
+        return None
+
+
+def normalizar_tipo(tipo):
+    """
+    Normaliza o valor bruto 'Tipo - Subtipo' do LegalOne (seção 12).
+    Regra: tipo-base (antes do 1º hífen) define o tipo, EXCETO
+    'Workflow - Protocolo (...)' que vira Prazo. Base desconhecida → Diversos.
+    """
+    base, _, sub = str(tipo).partition("-")
+    base = base.strip()
+    sub = sub.strip()
+    if base == "Workflow" and sub.lower().startswith("protocolo"):
+        return "Prazo"
+    return TIPO_BASE_MAP.get(base, "Diversos")
+
+
+def extract_fatal(desc):
+    if not isinstance(desc, str):
+        return None
+    m = re.search(r"FATAL[\s:]+(\d{2})/(\d{2})/(\d{4})", desc, re.IGNORECASE)
+    if m:
+        try:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except Exception:
+            pass
+    return None
+
+
+def extract_aud(desc):
+    if not isinstance(desc, str):
+        return None
+    m = re.search(r"AUD[\s:]+(\d{2})/(\d{2})/(\d{4})", desc, re.IGNORECASE)
+    if m:
+        try:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except Exception:
+            pass
+    return None
+
+
+def check_incons(tipo, desc, conclusao, fatal, aud):
+    """Regras de validação da seção 15. Retorna alertas separados por '; '."""
+    issues = []
+    d = desc or ""
+    has_elab = bool(re.search(r"ELABORAR", d, re.IGNORECASE))
+    ref = fatal or aud                      # FATAL tem prioridade sobre AUD
+    # Regra 1 — conclusão posterior à data da descrição
+    if ref and conclusao and conclusao > ref:
+        issues.append(f"Conclusão posterior à data da descrição ({ref.strftime('%d/%m/%Y')})")
+    # Regra 2 — ano inválido (5+ dígitos) apenas nestes tipos
+    if tipo in ("Prazo", "Audiência", "Pauta de Julgamento", "Perícia") and re.search(r"\d{5,}", d):
+        issues.append("Ano inválido na descrição")
+    # Regra 3 — Prazo com descrição de Audiência
+    if tipo == "Prazo" and re.search(r"AUDIÊNCIA DE CONCILIAÇÃO", d, re.IGNORECASE):
+        issues.append("Tipo Prazo com descrição de Audiência")
+    # Regra 4 — Audiência com descrição de Prazo
+    if tipo == "Audiência" and re.search(r"PRAZO.*Protocolar", d, re.IGNORECASE):
+        issues.append("Tipo Audiência com descrição de Prazo")
+    # Regra 5 — Diversos com descrição de Audiência/Prazo (isenta se contém ELABORAR)
+    if tipo == "Diversos" and not has_elab:
+        if re.search(r"AUDIÊNCIA DE CONCILIAÇÃO", d, re.IGNORECASE) or re.search(r"PRAZO.*Protocolar", d, re.IGNORECASE):
+            issues.append("Tipo Diversos com descrição de Audiência/Prazo")
+    return "; ".join(issues)
+
+
+def get_row_color(du, incons, tipo):
+    """Cor da linha (seção 13), em ordem de prioridade. Usado em tabelas e Excel."""
+    if incons:
+        return CLR_LARANJA, "000000"                                 # P1 · laranja
+    if tipo in ("AUDIÊNCIA DE JULGAMENTO", "ACOMPANHAR JULGAMENTO"):
+        return CLR_VERDE, "000000"                                   # P2 · verde
+    if du is None:
+        return None, None
+    if du < 0:
+        return CLR_VERM, CLR_VERM_TXT                                # P3 · DU<0 vermelho claro
+    if du == 0:
+        return CLR_ROSA, "000000"                                    # DU=0 rosa
+    if du == 1:
+        return CLR_AMARELO, "000000"                                 # DU=1 amarelo
+    return CLR_VERDE, "000000"                                       # DU>1 verde
+
+
+def abbrev_name(name):
+    """Abrevia nome mantendo primeiro + último sobrenome relevante (para colunas proporcionais)."""
+    if not name:
+        return name
+    up = str(name).strip()
+    if up.upper() in ("CONTROLADORIA JURÍDICA", SEM_COORD, "(SEM RESPONSÁVEL)"):
+        return name
+    conn = {"de", "da", "do", "dos", "das", "e"}
+    suf = {"filho", "júnior", "junior", "jr", "jr.", "neto", "sobrinho", "segundo"}
+    parts = up.split()
+    if len(parts) <= 2:
+        return name
+    first = parts[0]
+    last = parts[-1]
+    if last.lower() in suf:
+        j = len(parts) - 2
+        if parts[j].lower() in conn and j > 0:
+            j -= 1
+        last = parts[j] + " " + last
+    return first + " " + last
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PROCESSAMENTO DE DADOS (seções 2, 3, 5, 6, 12, 15, 16)
+# ════════════════════════════════════════════════════════════════════════════
+def processar_planilha(uploaded_file):
+    """Lê a planilha; cabeçalho na 2ª linha (linha 0 = info de exportação)."""
+    df_raw = pd.read_excel(uploaded_file, sheet_name=0, header=None)
+    header_idx = 1
+    for i in range(min(10, len(df_raw))):
+        row = df_raw.iloc[i].tolist()
+        if any(("Conclusão" in str(c)) or ("Tipo" == str(c).strip()) for c in row):
+            header_idx = i
+            break
+    headers = [str(h).strip() for h in df_raw.iloc[header_idx].tolist()]
+    df = df_raw.iloc[header_idx + 1:].copy()
+    df.columns = headers
+    df = df.drop_duplicates().reset_index(drop=True)
+    return df, headers
+
+
+def validar_estrutura(headers):
+    faltando = []
+    for c in COLUNAS_ESPERADAS:
+        if c == "Tipo":
+            if not any(t in headers for t in TIPO_COLS):   # aceita "Tipo" ou "Tipo - Subtipo"
+                faltando.append("Tipo / Tipo - Subtipo")
+        elif c not in headers:
+            faltando.append(c)
+    return faltando
+
+
+def _get(row, *names, default=""):
+    for n in names:
+        if n in row and pd.notna(row[n]):
+            v = str(row[n]).strip()
+            if v not in ("", "nan", "None", "NaT"):
+                return v
+    return default
+
+
+def resolver_responsavel(row):
+    """Responsável + fallback para 'Envolvidos / Nome' (seção 6)."""
+    resp = _get(row, "Responsável processo", "Responsavel processo")
+    if resp:
+        return resp
+    env = _get(row, "Envolvidos / Nome")
+    if env:
+        candidates = [n.strip() for n in re.split(r"[;,|\n]", env) if n.strip()]
+        if candidates:
+            mapped = next((c for c in candidates if c in RESP_TO_COORD), None)
+            return mapped if mapped else candidates[0]
+    return ""
+
+
+def construir_registros(df, today, coord_overrides=None):
+    """
+    Constrói registros aplicando todas as regras do manual.
+    coord_overrides: {responsável: coordenador} escolhido manualmente na carga (seção 8).
+    Retorna (registros, alertas, sem_coord_map) — sem_coord_map = {resp: qtd} não mapeados.
+    """
+    coord_overrides = coord_overrides or {}
+    registros, alertas, seen = [], [], set()
+    sem_coord_map = {}
+    # Transparência (nenhum registro sai silenciosamente): contadores de descartes.
+    stats = {"sem_data": 0, "fora_recorte": 0, "duplicatas": 0}
+    for _, row in df.iterrows():
+        conclusao = parse_date(row.get("Conclusão prevista"))
+        if not conclusao:
+            stats["sem_data"] += 1
+            continue
+        du = busdays(today, conclusao)
+        if du is None:
+            stats["sem_data"] += 1
+            continue
+        if du > DU_LIMIT:                               # seção 3 / 18-H — fora do horizonte (futuro)
+            stats["fora_recorte"] += 1
+            continue
+
+        id_ = _get(row, "Id")
+        pasta = _get(row, "Pasta")
+        processo = pasta if pasta else id_              # seção 5
+        tipo = normalizar_tipo(_get(row, *TIPO_COLS))   # seção 12 (lê "Tipo - Subtipo" ou "Tipo")
+        desc = _get(row, "Descrição")
+        resp = resolver_responsavel(row)                # seção 6
+
+        # dedup: Id + Conclusão + Tipo + Responsável (seção 3)
+        key = f"{id_}|{conclusao.isoformat()}|{tipo}|{resp}"
+        if key in seen:
+            stats["duplicatas"] += 1
+            continue
+        seen.add(key)
+
+        resp_disp = resp or "(Sem responsável)"
+        coord_raw = RESP_TO_COORD.get(resp, coord_overrides.get(resp, SEM_COORD))
+        if coord_raw == SEM_COORD and resp:
+            sem_coord_map[resp] = sem_coord_map.get(resp, 0) + 1
+        coord_display = COORD_DISPLAY.get(coord_raw, coord_raw)
+
+        fatal = extract_fatal(desc)
+        aud = extract_aud(desc)
+        incons = check_incons(tipo, desc, conclusao, fatal, aud)
+
+        cliente = _get(row, "Cliente")
+        num_proc = _get(row, "Número do processo")      # seção 16
+
+        if incons:
+            alertas.append({
+                "Processo": processo, "Cliente": cliente, "Número do Processo": num_proc,
+                "Tipo": tipo, "Responsável": resp_disp, "Coordenador": coord_display,
+                "Conclusão": conclusao.strftime("%d/%m/%Y"), "DU": du, "Inconsistência": incons,
+            })
+
+        registros.append({
+            "id": id_, "processo": processo, "tipo": tipo, "desc": desc[:300],
+            "status": _get(row, "Status"), "resp": resp_disp,
+            "coord": coord_raw, "coord_display": coord_display,
+            "conclusao": conclusao.strftime("%d/%m/%Y"), "conclusao_iso": conclusao.isoformat(),
+            "du": du, "incons": incons,
+            "cliente": cliente, "num_proc": num_proc,
+        })
+    registros.sort(key=lambda r: (r["conclusao_iso"], r["resp"], r["processo"]))
+    return registros, alertas, sem_coord_map, stats
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PERSISTÊNCIA / PUBLICAÇÃO
+# ════════════════════════════════════════════════════════════════════════════
+def load_published():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"registros": [], "publicado_em": None, "total": 0, "versao": None, "referencia": None}
+
+
+def save_published(registros, versao, today_str):
+    data = {"registros": registros, "publicado_em": datetime.now().strftime("%d/%m/%Y %H:%M"),
+            "total": len(registros), "versao": versao, "referencia": today_str}
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, default=str)
+    return data
+
+
+def push_to_github(token, repo_name, file_path, content, commit_msg):
+    try:
+        from github import Github
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        try:
+            existing = repo.get_contents(file_path)
+            repo.update_file(file_path, commit_msg, content, existing.sha)
+        except Exception:
+            repo.create_file(file_path, commit_msg, content)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# EXPORTAÇÃO EXCEL / CSV (seção 13)
+# ════════════════════════════════════════════════════════════════════════════
+COLS_DETAIL = ["Processo", "Cliente", "Número do Processo", "Tipo", "Descrição",
+               "Coordenador", "Responsável", "Conclusão Prevista", "Inconsistência"]
+COLS_RESUMO = ["Responsável", "Prazo", "Audiência", "Diversos", "Pauta de Julgamento",
+               "Perícia", "Publicação", "Total", "Inconsistências"]
+
+
+def _hstyle(cell):
+    cell.fill = PatternFill("solid", fgColor=CLR_HEADER)
+    cell.font = Font(bold=True, color=CLR_HEADER_TXT, size=10)
+    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+
+def apply_row_style(ws, row_num, du, incons, tipo, num_cols):
+    bg, txt = get_row_color(du, incons, tipo)
+    if not bg:
+        return
+    fill = PatternFill("solid", fgColor=bg)
+    font = Font(color=txt, size=10)
+    for col in range(1, num_cols + 1):
+        ws.cell(row=row_num, column=col).fill = fill
+        ws.cell(row=row_num, column=col).font = font
+
+
+def write_sheet(ws, data_rows, cols, is_resumo=False):
+    ws.row_dimensions[1].height = 30
+    for ci, col in enumerate(cols, 1):
+        _hstyle(ws.cell(row=1, column=ci, value=col))
+    for ri, row in enumerate(data_rows, 2):
+        for ci, col in enumerate(cols, 1):
+            cell = ws.cell(row=ri, column=ci, value=row.get(col, ""))
+            cell.alignment = Alignment(vertical="top", wrap_text=(cols[ci - 1] == "Descrição"))
+            cell.font = Font(size=10)
+        if not is_resumo:
+            apply_row_style(ws, ri, row.get("Dias Úteis"), row.get("Inconsistência", ""),
+                            row.get("Tipo", ""), len(cols))
+        elif row.get("Responsável") == "TOTAL":
+            for ci in range(1, len(cols) + 1):
+                ws.cell(row=ri, column=ci).fill = PatternFill("solid", fgColor=CLR_GOLD)
+                ws.cell(row=ri, column=ci).font = Font(bold=True, color=CLR_GOLD_TXT, size=10)
+    for ci, col in enumerate(cols, 1):
+        max_len = max([len(str(col))] + [len(str(r.get(col, ""))) for r in data_rows[:50]] or [8])
+        ws.column_dimensions[get_column_letter(ci)].width = min(max(max_len + 2, 8), 50)
+    ws.freeze_panes = "A2"
+    if ws.max_row >= 1:
+        ws.auto_filter.ref = ws.dimensions
+
+
+def _to_detail(r):
+    return {"Processo": r["processo"], "Cliente": r.get("cliente", ""),
+            "Número do Processo": r.get("num_proc", ""), "Tipo": r["tipo"], "Descrição": r["desc"],
+            "Coordenador": r["coord_display"], "Responsável": r["resp"],
+            "Conclusão Prevista": r["conclusao"], "Inconsistência": r["incons"],
+            "Dias Úteis": r["du"]}
+
+
+def gerar_excel_coord(coord_key, registros, coord_display):
+    rows = [r for r in registros if r["coord"] == coord_key and r["resp"] not in EXCLUDED_SET]
+    rows.sort(key=lambda r: (r["conclusao_iso"], r["resp"], r["processo"]))
+    wb = openpyxl.Workbook()
+
+    by_resp = {}
+    for r in rows:
+        rp = r["resp"]
+        o = by_resp.setdefault(rp, {"Responsável": rp, "Prazo": 0, "Audiência": 0, "Diversos": 0,
+                                    "Pauta de Julgamento": 0, "Perícia": 0, "Publicação": 0,
+                                    "Total": 0, "Inconsistências": 0})
+        t = r["tipo"]
+        if t in ("Prazo", "Audiência", "Pauta de Julgamento", "Perícia", "Publicação"):
+            o[t] += 1
+        else:
+            o["Diversos"] += 1
+        o["Total"] += 1
+        if r["incons"]:
+            o["Inconsistências"] += 1
+    resumo_rows = sorted(by_resp.values(), key=lambda x: -x["Total"])
+    tot = {c: sum(r.get(c, 0) for r in resumo_rows if isinstance(r.get(c, 0), int)) for c in COLS_RESUMO[1:]}
+    tot["Responsável"] = "TOTAL"
+    resumo_rows.append(tot)
+
+    ws_res = wb.active
+    ws_res.title = "Resumo"
+    write_sheet(ws_res, resumo_rows, COLS_RESUMO, is_resumo=True)
+
+    for tipo_key, nome_aba in [("Prazo", "Prazos"), ("Audiência", "Audiências"), ("Diversos", "Diversos")]:
+        write_sheet(wb.create_sheet(nome_aba), [_to_detail(r) for r in rows if r["tipo"] == tipo_key], COLS_DETAIL)
+    write_sheet(wb.create_sheet("Inconsistências"), [_to_detail(r) for r in rows if r["incons"]], COLS_DETAIL)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def exportar_xlsx_filtrado(rows):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Dados"
+    write_sheet(ws, [_to_detail(r) for r in rows], COLS_DETAIL)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def exportar_csv(rows):
+    lines = [";".join(COLS_DETAIL)]
+    for r in rows:
+        d = _to_detail(r)
+        vals = [str(d.get(c, "")).replace(";", ",").replace("\n", " ") for c in COLS_DETAIL]
+        lines.append(";".join(f'"{v}"' for v in vals))
+    return ("﻿" + "\n".join(lines)).encode("utf-8")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# CAMADA VISUAL — CSS + componentes (design system vinho/dourado)
+# ════════════════════════════════════════════════════════════════════════════
+def _logo_b64():
+    base = os.path.dirname(os.path.abspath(globals().get("__file__", "app.py")))
+    for p in ["project/assets/logo-igsa.jpg", "assets/logo-igsa.jpg",
+              os.path.join(base, "project/assets/logo-igsa.jpg")]:
+        if os.path.exists(p):
+            with open(p, "rb") as f:
+                return base64.b64encode(f.read()).decode()
+    return ""
+
+
+LOGO_B64 = _logo_b64()
+
+
+def inject_css():
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cormorant+Garamond:wght@500;600;700&family=Libre+Franklin:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+    :root{--wine:#7E1F2D;--wine-d:#641828;--wine-l:#9B2335;--gold:#CDA736;--gold-d:#8E6E1C;
+          --ink:#2A2420;--muted:#756A5D;--sand:#F7F2E9;--border:#E5DAC7;--green:#2E9E5B;}
+    html,body,[class*="css"],.stMarkdown{font-family:'Libre Franklin',sans-serif;color:var(--ink)}
+    .stApp{background:#F7F2E9}
+    .block-container{padding-top:1.6rem;max-width:1200px}
+    /* Sidebar vinho */
+    section[data-testid="stSidebar"]{background:linear-gradient(160deg,#651823 0%,#7E1F2D 55%,#9E3340 100%)}
+    section[data-testid="stSidebar"] *{color:#F5E9C2}
+    section[data-testid="stSidebar"] .stButton>button{
+        width:100%;text-align:left;background:rgba(255,255,255,.03);color:#EbD9C6;border:1px solid rgba(205,167,54,.15);
+        border-radius:8px;padding:.55rem .8rem;font-size:13.5px;font-weight:500;margin-bottom:2px;transition:all .15s}
+    section[data-testid="stSidebar"] .stButton>button:hover{background:rgba(255,255,255,.09);border-color:rgba(205,167,54,.4)}
+    section[data-testid="stSidebar"] .stButton>button:focus{box-shadow:none;color:#fff}
+    section[data-testid="stSidebar"] .nav-active>button{background:var(--wine-d)!important;color:#fff!important;
+        border-left:3px solid var(--gold)!important;font-weight:600!important}
+    /* Header */
+    .ig-kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-d);font-weight:600;margin-bottom:6px}
+    .ig-title{font-family:'Cormorant Garamond',serif;font-size:40px;font-weight:600;color:var(--ink);line-height:1.1;margin:0}
+    .ig-ref{display:inline-flex;align-items:center;gap:7px;color:var(--gold-d);font-weight:600;font-size:13px;margin-top:8px}
+    /* Cards */
+    .ig-card{position:relative;background:#fff;border:1px solid var(--border);border-radius:12px;
+        padding:15px 16px;box-shadow:0 1px 3px rgba(56,11,17,.07);overflow:hidden;margin-bottom:6px}
+    .ig-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--acc,#7E1F2D)}
+    .ig-card .k{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--gold-d);font-weight:700;margin-bottom:6px}
+    .ig-card .v{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:var(--ink);line-height:1}
+    .ig-tile{border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(56,11,17,.07)}
+    .ig-tile .tl{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+    .ig-tile .tv{font-family:'Cormorant Garamond',serif;font-size:44px;font-weight:600;line-height:1.05;margin:6px 0 2px}
+    .ig-tile .td{font-size:12px;opacity:.82}
+    .ig-sec{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--wine);font-weight:600;
+        border-bottom:1px solid var(--border);padding-bottom:7px;margin:22px 0 12px}
+    /* Tabelas HTML */
+    .ig-tw{max-height:var(--h,440px);overflow:auto;border:1px solid var(--border);border-radius:10px;background:#fff}
+    .ig-tw table{width:100%;border-collapse:collapse;font-size:12px}
+    .ig-tw thead th{background:var(--wine);color:#fff;padding:8px 10px;text-align:left;font-size:10px;
+        letter-spacing:.04em;text-transform:uppercase;font-weight:600;position:sticky;top:0;white-space:nowrap}
+    .ig-tw tbody td{padding:6px 10px;border-bottom:1px solid #EDE5D4;vertical-align:top}
+    .ig-tw tbody tr:hover td{filter:brightness(.97)}
+    .ig-legend{background:#fff;border:1px solid var(--border);border-radius:8px;padding:9px 14px;margin:6px 0 12px;
+        display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;font-size:11px}
+    .ig-legend b{color:var(--wine);letter-spacing:.05em;font-size:10px}
+    .ig-legend span.sw{width:13px;height:13px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.08);vertical-align:middle;margin-right:5px}
+    .ig-pub{background:rgba(0,0,0,.16);border:1px solid rgba(205,167,54,.22);border-radius:10px;padding:12px 14px;
+        font-size:11.5px;line-height:1.55}
+    .ig-pub .dot{width:7px;height:7px;border-radius:50%;background:#43B26C;display:inline-block;margin-right:6px}
+    /* Botão dourado (Controladoria) */
+    div[data-testid="stButton"] .accent>button{background:var(--gold);color:#4E121A;text-transform:uppercase;
+        letter-spacing:.08em;font-weight:600;border:none}
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def render_header(kicker, title, ref=None, sub=None):
+    cal = ('<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+           'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" '
+           'width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line>'
+           '<line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>')
+    ref_html = f'<div class="ig-ref">{cal} Referência {ref}</div>' if ref else \
+               (f'<div style="margin-top:8px;font-size:13px;color:var(--muted)">{sub}</div>' if sub else "")
+    st.markdown(
+        f'<div class="ig-kicker">{kicker}</div><h1 class="ig-title">{title}</h1>{ref_html}',
+        unsafe_allow_html=True)
+
+
+def card(kicker, value, accent="#7E1F2D"):
+    return f'<div class="ig-card" style="--acc:{accent}"><div class="k">{kicker}</div><div class="v">{value}</div></div>'
+
+
+def cards_row(items, ncols):
+    cols = st.columns(ncols)
+    for i, (k, v, acc) in enumerate(items):
+        with cols[i % ncols]:
+            st.markdown(card(k, v, acc), unsafe_allow_html=True)
+
+
+def render_color_legend():
+    st.markdown(
+        '<div class="ig-legend"><b>LEGENDA</b>'
+        '<span><span class="sw" style="background:#C6EFCE"></span>No prazo</span>'
+        '<span><span class="sw" style="background:#FFEB9C"></span>Amanhã (D-1)</span>'
+        '<span><span class="sw" style="background:#FFC7CE"></span>Vence hoje</span>'
+        '<span><span class="sw" style="background:#E57373"></span>Vencido / pendente</span>'
+        '<span><span class="sw" style="background:#FFCC99"></span>Inconsistência</span></div>',
+        unsafe_allow_html=True)
+
+
+def render_html_table(df, height=440, color_rows=True):
+    if df is None or df.empty:
+        st.info("Nenhum registro para os filtros selecionados.")
+        return
+    visible = [c for c in df.columns if not c.startswith("_")]
+    thead = "".join(f"<th>{c}</th>" for c in visible)
+    body = []
+    for _, row in df.iterrows():
+        bg, fg = "", ""
+        if color_rows:
+            bg, fg = get_row_color(row.get("_du"), str(row.get("Inconsistência", "") or ""), str(row.get("Tipo", "") or ""))
+        style = f'style="background:#{bg};color:#{fg}"' if bg else ""
+        tds = "".join(f"<td>{'' if pd.isna(v) else v}</td>" for c, v in zip(df.columns, row.tolist()) if not c.startswith("_"))
+        body.append(f"<tr {style}>{tds}</tr>")
+    st.markdown(
+        f'<div class="ig-tw" style="--h:{height}px"><table><thead><tr>{thead}</tr></thead>'
+        f'<tbody>{"".join(body)}</tbody></table></div>', unsafe_allow_html=True)
+
+
+# ---- Gráficos (Altair) ----
+def chart_bar_h(df_data, val_col, lbl_col, color="#7E1F2D"):
+    if df_data.empty:
+        return
+    import altair as alt
+    d = df_data.copy()
+    d["_f"] = d[val_col].apply(fmt_num)
+    base = alt.Chart(d).encode(
+        y=alt.Y(f"{lbl_col}:N", sort="-x", title=None, axis=alt.Axis(labelLimit=200, labelFontSize=11)),
+        x=alt.X(f"{val_col}:Q", title=None, axis=alt.Axis(labelFontSize=11),
+                scale=alt.Scale(domain=[0, float(d[val_col].max()) * 1.18])))
+    bars = base.mark_bar(color=color, cornerRadiusTopRight=4, cornerRadiusBottomRight=4)
+    labels = base.mark_text(align="left", dx=5, fontSize=12, fontWeight="bold", color="#2A2420").encode(text="_f:N")
+    st.altair_chart((bars + labels).properties(height=max(200, 26 * len(d)))
+                    .configure_axis(grid=True, gridColor="#EDE5D4").configure_view(strokeWidth=0),
+                    use_container_width=True)
+
+
+def chart_donut(labels, values):
+    if not values or sum(values) == 0:
+        return
+    import altair as alt
+    d = pd.DataFrame({"Tipo": labels, "Qtd": values})
+    total = sum(values)
+    d["_pct"] = (d["Qtd"] / total * 100).round(1)
+    base = alt.Chart(d).encode(
+        theta=alt.Theta("Qtd:Q", stack=True),
+        color=alt.Color("Tipo:N", scale=alt.Scale(range=MULTI_COLORS),
+                        legend=alt.Legend(orient="right", title=None, labelFontSize=11)),
+        tooltip=["Tipo", alt.Tooltip("Qtd", format=","), alt.Tooltip("_pct", title="%")])
+    pie = base.mark_arc(innerRadius=55, outerRadius=95)
+    center = alt.Chart(pd.DataFrame({"t": [f"{fmt_num(total)}"]})).mark_text(
+        size=22, fontWeight="bold", color="#2A2420", font="Cormorant Garamond").encode(text="t:N")
+    st.altair_chart((pie + center).properties(height=260).configure_view(strokeWidth=0), use_container_width=True)
+
+
+# ---- Tabela "Prazos por responsável" (seção 14) ----
+def render_prazos_por_responsavel(active_df, tipo_filter):
+    """Tabela resumida por responsável — SOMENTE tipo Prazo (manual §14)."""
+    st.markdown('<div class="ig-sec">Prazos por responsável</div>', unsafe_allow_html=True)
+    st.caption("Responsável e seu Coordenador, com a situação dos prazos por status.")
+    if tipo_filter not in ("Todos", "Prazo"):
+        st.info("Nenhum prazo encontrado.")
+        return
+    prazos = active_df[active_df["tipo"] == "Prazo"]
+    if prazos.empty:
+        st.info("Nenhum prazo encontrado.")
+        return
+    agg = {}
+    for _, r in prazos.iterrows():
+        k = r["resp"]
+        o = agg.setdefault(k, {"resp": k, "coord": r["coord_display"], "total": 0,
+                               "d1": 0, "fatal": 0, "venc": 0, "dentro": 0})
+        o["total"] += 1
+        du = r["du"]
+        if du == 1:
+            o["d1"] += 1
+        elif du == 0:
+            o["fatal"] += 1
+        elif du < 0:
+            o["venc"] += 1
+        else:
+            o["dentro"] += 1
+    linhas = sorted(agg.values(), key=lambda x: abbrev_name(x["resp"]).lower())  # ordem alfabética
+
+    def cell(v, bg, fg="#2A2420"):
+        return f'<td style="text-align:center;font-weight:600;background:{bg}">{v or ""}</td>' if v else \
+               '<td style="text-align:center"></td>'
+
+    head = ("<tr><th>Responsável</th><th>Coordenador</th>"
+            "<th style='text-align:center;background:#641828'>Total</th>"
+            "<th style='text-align:center'>D-1</th><th style='text-align:center'>Fatal</th>"
+            "<th style='text-align:center'>Vencido</th><th style='text-align:center'>No prazo</th>"
+            "<th style='text-align:center;background:#DEC158;color:#4E121A'>Em atraso</th></tr>")
+    rows_html = []
+    tg = {"total": 0, "d1": 0, "fatal": 0, "venc": 0, "dentro": 0}
+    for o in linhas:
+        for kk in tg:
+            tg[kk] += o[kk]
+        atraso = o["fatal"] + o["venc"]
+        rows_html.append(
+            "<tr>"
+            f'<td style="font-weight:500">{abbrev_name(o["resp"])}</td>'
+            f'<td style="color:#756A5D;font-size:11.5px">{abbrev_name(o["coord"])}</td>'
+            f'<td style="text-align:center;font-weight:700;color:#651823">{o["total"]}</td>'
+            + cell(o["d1"], "#FFEB9C") + cell(o["fatal"], "#FFC7CE")
+            + (f'<td style="text-align:center;font-weight:700;background:#E57373;color:#fff">{o["venc"]}</td>' if o["venc"] else '<td style="text-align:center"></td>')
+            + cell(o["dentro"], "#C6EFCE")
+            + (f'<td style="text-align:center;font-weight:700;background:#F6DBDD;color:#651823">{atraso}</td>' if atraso else '<td style="text-align:center"></td>')
+            + "</tr>")
+    atraso_tg = tg["fatal"] + tg["venc"]
+    rows_html.append(
+        '<tr style="border-top:2px solid #7E1F2D;background:#F7F2E9;font-weight:700">'
+        '<td colspan="2">TOTAL GERAL</td>'
+        f'<td style="text-align:center;color:#651823">{tg["total"]}</td>'
+        f'<td style="text-align:center">{tg["d1"] or ""}</td><td style="text-align:center">{tg["fatal"] or ""}</td>'
+        f'<td style="text-align:center">{tg["venc"] or ""}</td><td style="text-align:center">{tg["dentro"] or ""}</td>'
+        f'<td style="text-align:center">{atraso_tg or ""}</td></tr>')
+    st.markdown(
+        f'<div class="ig-tw" style="--h:480px"><table><thead>{head}</thead>'
+        f'<tbody>{"".join(rows_html)}</tbody></table></div>', unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# FILTROS COMPARTILHADOS
+# ════════════════════════════════════════════════════════════════════════════
+def base_df(registros):
+    """DataFrame público: sem coordenações ocultas, sem responsável vazio."""
+    if not registros:
+        return pd.DataFrame()
+    df = pd.DataFrame(registros)
+    df["conclusao_dt"] = pd.to_datetime(df["conclusao_iso"])
+    df = df[df["resp"].notna() & (df["resp"] != "") & (df["resp"] != "nan")]
+    df = df[~df["coord"].isin(HIDDEN_COORDS)]                       # seção 11
+    return df
+
+
+def public_df(registros):
+    """Recorte público: exclui EXCLUDED_SET (§10). Coordenações ocultas já saem em base_df (§11)."""
+    df = base_df(registros)
+    if df.empty:
+        return df
+    return df[~df["resp"].isin(EXCLUDED_SET)]                       # seção 10
+
+
+def apply_dates(df, ini, fim):
+    if ini:
+        df = df[df["conclusao_dt"] >= pd.Timestamp(ini)]
+    if fim:
+        df = df[df["conclusao_dt"] <= pd.Timestamp(fim)]
+    return df
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# PÁGINAS
+# ════════════════════════════════════════════════════════════════════════════
+def metric_items(df):
+    def c(t):
+        return fmt_num(len(df[df.tipo == t]))
+    return [("Total", fmt_num(len(df)), WINE), ("Prazos", c("Prazo"), "#9E3340"),
+            ("Audiências", c("Audiência"), GOLD), ("Diversos", c("Diversos"), GOLD_DARK),
+            ("Pauta Julg.", c("Pauta de Julgamento"), GREEN), ("Perícia", c("Perícia"), "#BE5862"),
+            ("Publicação", c("Publicação"), "#651823")]
+
+
+def page_geral(registros, ref):
+    render_header("Portal de Gestão de Prazos", "Visão Geral", ref=ref)
+    df0 = public_df(registros)
+    if df0.empty:
+        st.info("Nenhum dado disponível. Publique uma planilha na Área Administrativa.")
+        return
+
+    c1, c2, c3, c4 = st.columns([1, 1, 1.4, 1.4])
+    ini = c1.date_input("Data Início", value=None, key="g_ini")
+    fim = c2.date_input("Data Fim", value=None, key="g_fim")
+    coords = ["Todos"] + sorted(df0["coord_display"].dropna().unique().tolist())
+    coord_f = c3.selectbox("Coordenador", coords, key="g_coord")
+    tipos = ["Todos"] + [t for t in TIPOS_CONHECIDOS if t in df0["tipo"].unique()]
+    tipo_f = c4.selectbox("Tipo", tipos, key="g_tipo")
+
+    layout = st.radio("Layout", ["Panorama", "Prioridades"], horizontal=True, key="g_layout")
+
+    df = apply_dates(df0, ini, fim)
+    if coord_f != "Todos":
+        df = df[df["coord_display"] == coord_f]
+    if tipo_f != "Todos":
+        df = df[df["tipo"] == tipo_f]
+
+    if layout == "Panorama":
+        cards_row(metric_items(df), 7)
+        st.markdown('<div class="ig-sec">Composição por tipo · Distribuição por coordenador</div>', unsafe_allow_html=True)
+        ca, cb = st.columns([1, 1.35])
+        with ca:
+            by_t = df.groupby("tipo").size().reset_index(name="q").sort_values("q", ascending=False)
+            chart_donut(by_t["tipo"].tolist(), by_t["q"].tolist())
+        with cb:
+            by_c = df.groupby("coord_display").size().reset_index(name="Pendências").sort_values("Pendências", ascending=False)
+            by_c["coord_display"] = by_c["coord_display"].apply(abbrev_name)
+            chart_bar_h(by_c, "Pendências", "coord_display", WINE)
+        st.markdown('<div class="ig-sec">Responsáveis com mais pendências</div>', unsafe_allow_html=True)
+        top = (df[df.resp != "(Sem responsável)"].groupby("resp").size()
+               .reset_index(name="Qtd").sort_values("Qtd", ascending=False).head(10))
+        top["resp"] = top["resp"].apply(abbrev_name)
+        chart_bar_h(top, "Qtd", "resp", WINE)
+    else:  # Prioridades
+        s = lambda cond: fmt_num(len(df[cond]))
+        tiles = [("Vencidos", s(df.du < 0), "#F4D6DA", "#8E1220", "pendentes de baixa"),
+                 ("Vencem hoje", s(df.du == 0), "#FADFE3", "#8E1220", "prazo fatal"),
+                 ("Amanhã (D-1)", s(df.du == 1), "#FAEFC9", "#6b5410", "agir hoje"),
+                 ("Total pendente", fmt_num(len(df)), "#F6DBDD", "#651823", "no recorte atual")]
+        cols = st.columns(4)
+        for i, (lb, v, bg, fg, dsc) in enumerate(tiles):
+            cols[i].markdown(f'<div class="ig-tile" style="background:{bg};color:{fg}"><div class="tl">{lb}</div>'
+                             f'<div class="tv">{v}</div><div class="td">{dsc}</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="ig-sec">Composição por tipo · Responsáveis com mais pendências</div>', unsafe_allow_html=True)
+        ca, cb = st.columns([1, 1.2])
+        with ca:
+            by_t = df.groupby("tipo").size().reset_index(name="q").sort_values("q", ascending=False)
+            chart_donut(by_t["tipo"].tolist(), by_t["q"].tolist())
+        with cb:
+            top = (df[df.resp != "(Sem responsável)"].groupby("resp").size()
+                   .reset_index(name="Qtd").sort_values("Qtd", ascending=False).head(10))
+            top["resp"] = top["resp"].apply(abbrev_name)
+            chart_bar_h(top, "Qtd", "resp", WINE)
+
+    render_prazos_por_responsavel(df, tipo_f)   # seção 14 — ao final da página
+
+
+def page_coordenacao(registros, ref):
+    render_header("Controladoria · Equipes", "Por Coordenação",
+                  sub="Distribuição e detalhamento das pendências por responsável")
+    df0 = public_df(registros)
+    if df0.empty:
+        st.info("Nenhum dado disponível.")
+        return
+
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    ini = c1.date_input("Data Início", value=None, key="c_ini")
+    fim = c2.date_input("Data Fim", value=None, key="c_fim")
+    coord_f = c3.selectbox("Coordenador", ["Todos"] + sorted(df0["coord_display"].dropna().unique().tolist()), key="c_coord")
+    resp_f = c4.selectbox("Responsável", ["Todos"] + sorted(df0["resp"].dropna().unique().tolist()), key="c_resp")
+    tipos = ["Todos"] + [t for t in TIPOS_CONHECIDOS if t in df0["tipo"].unique()]
+    tipo_f = c5.selectbox("Tipo", tipos, key="c_tipo")
+    proc_f = c6.text_input("Buscar processo / cliente", key="c_proc")
+
+    df = apply_dates(df0, ini, fim)
+    if coord_f != "Todos":
+        df = df[df["coord_display"] == coord_f]
+    if resp_f != "Todos":
+        df = df[df["resp"] == resp_f]
+    if tipo_f != "Todos":
+        df = df[df["tipo"] == tipo_f]
+    if proc_f:
+        q = proc_f.lower()
+        df = df[df["processo"].str.lower().str.contains(q, na=False) |
+                df["cliente"].str.lower().str.contains(q, na=False)]
+
+    cards_row(metric_items(df), 7)
+
+    st.markdown('<div class="ig-sec">Resumo por responsável</div>', unsafe_allow_html=True)
+    if df.empty:
+        st.info("Nenhum registro para os filtros selecionados.")
+    else:
+        rr = []
+        for resp_name, grp in df.groupby("resp", sort=False):
+            known = grp["tipo"].isin(TIPOS_CONHECIDOS)
+            rr.append({"Responsável": abbrev_name(resp_name),
+                       "Prazo": int((grp.tipo == "Prazo").sum()), "Aud.": int((grp.tipo == "Audiência").sum()),
+                       "Pauta": int((grp.tipo == "Pauta de Julgamento").sum()), "Perícia": int((grp.tipo == "Perícia").sum()),
+                       "Public.": int((grp.tipo == "Publicação").sum()),
+                       "Diversos": int(((grp.tipo == "Diversos") | ~known).sum()),
+                       "Total": len(grp), "Incons.": int((grp["incons"] != "").sum())})
+        rr.sort(key=lambda x: -x["Total"])
+        render_html_table(pd.DataFrame(rr), height=300, color_rows=False)
+
+    st.markdown('<div class="ig-sec">Detalhamento</div>', unsafe_allow_html=True)
+    render_color_legend()
+    det = df.copy()
+    det_view = pd.DataFrame({
+        "Processo": det["processo"], "Cliente": det["cliente"], "Tipo": det["tipo"],
+        "Descrição": det["desc"], "Coordenador": det["coord_display"].apply(abbrev_name),
+        "Responsável": det["resp"].apply(abbrev_name), "Conclusão": det["conclusao"],
+        "Inconsistência": det["incons"].replace("", "—"), "_du": det["du"]})
+    st.caption(f"Exibindo {min(len(det_view), 200)} de {fmt_num(len(det_view))} registros.")
+    render_html_table(det_view.head(200), height=420)
+
+    buf = exportar_xlsx_filtrado(df.to_dict("records"))
+    st.download_button("📥 Exportar seleção (Excel)", buf, "IGSA_Filtrado.xlsx",
+                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    render_prazos_por_responsavel(df, tipo_f)   # seção 14 — ao final da página
+
+
+def page_auditoria(registros, ref):
+    render_header("Controladoria · Qualidade", "Auditoria de Inconsistências",
+                  sub="Divergências de cadastro a revisar")
+    # Auditoria também respeita EXCLUDED_SET (§10) e HIDDEN_COORDS (§11).
+    df0 = public_df(registros)
+    if df0.empty:
+        st.info("Nenhum dado disponível.")
+        return
+    inc_all = df0[df0["incons"] != ""]
+
+    c1, c2, c3, c4 = st.columns(4)
+    ini = c1.date_input("Data Início", value=None, key="a_ini")
+    fim = c2.date_input("Data Fim", value=None, key="a_fim")
+    coord_f = c3.selectbox("Coordenador", ["Todos"] + sorted(df0["coord_display"].dropna().unique().tolist()), key="a_coord")
+    resp_f = c4.selectbox("Responsável", ["Todos"] + sorted(df0["resp"].dropna().unique().tolist()), key="a_resp")
+    inc_types = sorted({t.strip() for r in inc_all["incons"] for t in r.split(";") if t.strip()})
+    ti_f = st.selectbox("Tipo de Inconsistência", ["Todas"] + inc_types, key="a_tipo")
+
+    inc = apply_dates(inc_all, ini, fim)
+    if coord_f != "Todos":
+        inc = inc[inc["coord_display"] == coord_f]
+    if resp_f != "Todos":
+        inc = inc[inc["resp"] == resp_f]
+    if ti_f != "Todas":
+        inc = inc[inc["incons"].str.contains(re.escape(ti_f), na=False)]
+
+    st.markdown('<div style="background:linear-gradient(100deg,#FBF6E7,#fff);border:1px solid #EBD58A;'
+                'border-radius:10px;padding:12px 16px;margin:6px 0 16px;font-size:13px;color:#4A423B">'
+                'Registros com divergência entre tipo, descrição e data de conclusão. '
+                'Revise antes de exportar os relatórios das coordenações.</div>', unsafe_allow_html=True)
+
+    types_count = {}
+    for r in inc["incons"]:
+        for t in r.split(";"):
+            t = t.strip()
+            if t:
+                types_count[t] = types_count.get(t, 0) + 1
+    items = [("Total", fmt_num(len(inc)), "#BE5862")] + \
+            [(t[:34], fmt_num(v), GOLD) for t, v in sorted(types_count.items(), key=lambda x: -x[1])[:4]]
+    cards_row(items, 5)
+
+    st.markdown('<div class="ig-sec">Registros com inconsistência</div>', unsafe_allow_html=True)
+    if inc.empty:
+        st.markdown('<div style="background:#E2F3E8;border:1px solid #43B26C;border-radius:10px;padding:24px;'
+                    'text-align:center;color:#1E6E3E;font-weight:500">Nenhuma inconsistência detectada nos filtros selecionados.</div>',
+                    unsafe_allow_html=True)
+    else:
+        view = pd.DataFrame({
+            "Processo": inc["processo"], "Cliente": inc["cliente"], "Tipo": inc["tipo"],
+            "Coordenador": inc["coord_display"].apply(abbrev_name), "Responsável": inc["resp"].apply(abbrev_name),
+            "Conclusão": inc["conclusao"], "Inconsistência": inc["incons"]})
+        # linhas laranja (inconsistência) — cor fixa
+        html_rows = "".join(
+            "<tr style='background:#F7E3CE;color:#7a4a1f'>" +
+            "".join(f"<td>{'' if pd.isna(v) else v}</td>" for v in r) + "</tr>"
+            for r in view.itertuples(index=False))
+        thead = "".join(f"<th>{c}</th>" for c in view.columns)
+        st.markdown(f'<div class="ig-tw" style="--h:460px"><table><thead><tr>{thead}</tr></thead>'
+                    f'<tbody>{html_rows}</tbody></table></div>', unsafe_allow_html=True)
+        st.download_button("📥 Exportar Inconsistências", exportar_xlsx_filtrado(inc.to_dict("records")),
+                           "IGSA_Auditoria.xlsx",
+                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+def page_exportacao(registros, ref):
+    render_header("Controladoria · Relatórios", "Central de Exportação",
+                  sub="Gere planilhas por coordenação ou consolidadas")
+    if not registros:
+        st.info("Nenhum dado disponível.")
+        return
+    c1, c2 = st.columns(2)
+    ini = c1.date_input("Data Início", value=None, key="e_ini")
+    fim = c2.date_input("Data Fim", value=None, key="e_fim")
+
+    df = public_df(registros)
+    df = apply_dates(df, ini, fim)
+    active = df.to_dict("records")
+    if not active:
+        st.info("Nenhum registro no período selecionado.")
+        return
+
+    st.markdown('<div class="ig-sec">Relatório por coordenação</div>', unsafe_allow_html=True)
+    st.caption("Cada arquivo traz abas de Resumo, Prazos, Diversos e Inconsistências, com formatação condicional por prazo.")
+    coords = sorted({r["coord"] for r in active})
+    grid = st.columns(3)
+    for i, ck in enumerate(coords):
+        crows = [r for r in active if r["coord"] == ck]
+        disp = COORD_DISPLAY.get(ck, ck)
+        n_p = sum(1 for r in crows if r["tipo"] == "Prazo")
+        n_a = sum(1 for r in crows if r["tipo"] == "Audiência")
+        n_i = sum(1 for r in crows if r["incons"])
+        with grid[i % 3]:
+            with st.container(border=True):
+                st.markdown(f"**{disp}**")
+                st.caption(f"{len(crows)} atividades · {n_p} prazos · {n_a} audiências · {n_i} inconsist.")
+                st.download_button("📥 Baixar Excel", gerar_excel_coord(ck, active, disp),
+                                   f"IGSA_{disp[:28].replace(' ', '_')}.xlsx",
+                                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                   key=f"dl_{i}")
+
+    st.markdown('<div class="ig-sec">Exportação geral</div>', unsafe_allow_html=True)
+    g1, g2 = st.columns(2)
+    g1.download_button("📥 Exportar tudo (Excel)", exportar_xlsx_filtrado(active), "IGSA_Geral.xlsx",
+                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    g2.download_button("📄 Exportar tudo (CSV)", exportar_csv(active), "IGSA_Geral.csv", "text/csv")
+
+
+def page_admin():
+    render_header("Controladoria · Restrito", "Área Administrativa", sub="Carga e publicação de dados")
+    st.markdown('<div style="background:#FBF6E7;border:1px solid #EBD58A;border-radius:10px;padding:12px 16px;'
+                'margin-bottom:16px;font-size:12.5px;color:#8E6E1C"><b>Área restrita.</b> '
+                'Uso exclusivo da equipe de Controladoria Jurídica.</div>', unsafe_allow_html=True)
+
+    pub = load_published()
+    if pub.get("publicado_em"):
+        st.markdown(f'<div style="background:linear-gradient(90deg,#1a4731,#2E9E5B);color:#fff;padding:10px 16px;'
+                    f'border-radius:8px;margin-bottom:14px;font-size:12px">✓ Publicado em {pub["publicado_em"]} · '
+                    f'{fmt_num(pub["total"])} registros · Ref: {pub.get("referencia","—")}</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="ig-sec">1 · Carregar planilha</div>', unsafe_allow_html=True)
+    today = st.date_input("Data de referência", value=date(2026, 7, 1))
+    uploaded = st.file_uploader("Selecionar arquivo Excel (exportação LegalOne · .xlsx)", type=["xlsx", "xls"])
+    if not uploaded:
+        st.info("Formato aceito: exportação LegalOne (.xlsx). O cabeçalho é lido a partir da 2ª linha.")
+        return
+
+    with st.spinner("Processando e validando a planilha…"):
+        try:
+            df, headers = processar_planilha(uploaded)
+            faltando = validar_estrutura(headers)
+            if faltando:
+                st.error(f"❌ Colunas obrigatórias ausentes: {faltando}")
+                return
+            if len(df) < 5:
+                st.error("❌ Arquivo com menos de 5 linhas.")
+                return
+            registros, alertas, sem_coord_map, stats = construir_registros(df, today)
+        except Exception as e:
+            st.error(f"❌ Erro ao processar: {e}")
+            return
+    st.success(f"✅ {fmt_num(len(df))} linhas · {fmt_num(len(registros))} no recorte (DU ≤ {DU_LIMIT}) · "
+               f"{len(alertas)} inconsistências detectadas")
+    st.caption(
+        f"Transparência da carga · {fmt_num(stats['fora_recorte'])} atividades futuras (DU > {DU_LIMIT}) fora do painel "
+        f"· {fmt_num(stats['sem_data'])} sem data de conclusão · {fmt_num(stats['duplicatas'])} duplicatas removidas. "
+        "Nenhum prazo do recorte é descartado silenciosamente.")
+
+    # ---- Seção 8 · Responsáveis sem coordenador — seleção manual na carga ----
+    coord_overrides = {}
+    if sem_coord_map:
+        st.markdown('<div class="ig-sec">2 · Responsáveis sem coordenador</div>', unsafe_allow_html=True)
+        st.warning(f"{len(sem_coord_map)} responsável(is) sem coordenador mapeado. "
+                   "Selecione o coordenador de cada um ou mantenha sem coordenador (fica fora do painel público).")
+        opcoes = ["(manter sem coordenador)"] + sorted(COORD_MAP.keys())
+        for resp, qtd in sorted(sem_coord_map.items(), key=lambda x: -x[1]):
+            cA, cB = st.columns([2, 2])
+            cA.markdown(f"**{resp}** · {qtd} registro(s)")
+            escolha = cB.selectbox("Coordenador", opcoes, key=f"sc_{resp}", label_visibility="collapsed")
+            if escolha != "(manter sem coordenador)":
+                coord_overrides[resp] = escolha
+        if coord_overrides:
+            # Reprocessa aplicando as vinculações escolhidas (vale só para esta carga — §8/§18-J)
+            registros, alertas, sem_coord_map, stats = construir_registros(df, today, coord_overrides=coord_overrides)
+
+    # ---- Estatísticas da carga ----
+    st.markdown('<div class="ig-sec">Panorama da carga</div>', unsafe_allow_html=True)
+    stats = [("Total", fmt_num(len(registros)), WINE),
+             ("Prazos", fmt_num(sum(1 for r in registros if r["tipo"] == "Prazo")), "#9E3340"),
+             ("Audiências", fmt_num(sum(1 for r in registros if r["tipo"] == "Audiência")), GOLD),
+             ("Sem Coord.", fmt_num(sum(1 for r in registros if r["coord"] == SEM_COORD)), "#BE5862"),
+             ("Inconsist.", fmt_num(len(alertas)), GOLD_DARK)]
+    cards_row(stats, 5)
+
+    ca, cb = st.columns([1, 1.3])
+    with ca:
+        st.markdown('<div class="ig-sec">Distribuição por coordenação</div>', unsafe_allow_html=True)
+        cc = {}
+        for r in registros:
+            cc[r["coord_display"]] = cc.get(r["coord_display"], 0) + 1
+        for k, v in sorted(cc.items(), key=lambda x: -x[1]):
+            st.markdown(f'<div style="display:flex;justify-content:space-between;padding:6px 0;'
+                        f'border-bottom:1px solid #E5DAC7;font-size:13px"><span>{k}</span>'
+                        f'<span style="color:#8E6E1C;font-weight:600">{v}</span></div>', unsafe_allow_html=True)
+    with cb:
+        st.markdown('<div class="ig-sec">Inconsistências por tipo</div>', unsafe_allow_html=True)
+        ti = {}
+        for a in alertas:
+            for t in a["Inconsistência"].split(";"):
+                t = t.strip()
+                if t:
+                    ti[t] = ti.get(t, 0) + 1
+        if ti:
+            for k, v in sorted(ti.items(), key=lambda x: -x[1]):
+                st.markdown(f'<div style="display:flex;justify-content:space-between;padding:6px 0;'
+                            f'border-bottom:1px solid #E5DAC7;font-size:13px"><span>{k}</span>'
+                            f'<span style="color:#8E6E1C;font-weight:700">{v}</span></div>', unsafe_allow_html=True)
+        else:
+            st.success("Nenhuma inconsistência detectada.")
+
+    # ---- Publicação ----
+    st.markdown('<div class="ig-sec">3 · Publicar dados</div>', unsafe_allow_html=True)
+    st.caption("Ao publicar, o painel passa a exibir esta carga para toda a equipe.")
+    if alertas:
+        st.warning(f"⚠️ {len(alertas)} inconsistências. Revise no LegalOne ou publique assim mesmo.")
+    p1, p2 = st.columns([2, 1])
+    versao = p1.text_input("Identificação da carga", value=f"{today.strftime('%d/%m/%Y')} — Carga diária (Geral Pendentes)")
+    gh_token = p2.text_input("GitHub Token (opcional)", type="password",
+                             help="Garante a persistência dos dados no repositório")
+    if st.button("🚀 Publicar no painel", type="primary"):
+        with st.spinner("Publicando…"):
+            data = save_published(registros, versao, today.strftime("%d/%m/%Y"))
+            msg = f"✅ {fmt_num(len(registros))} registros publicados em {data['publicado_em']}."
+            if gh_token:
+                with open(DATA_FILE, encoding="utf-8") as f:
+                    content = f.read()
+                ok, err = push_to_github(gh_token, GITHUB_REPO, DATA_FILE, content, f"chore: publicar dados {versao}")
+                msg += " GitHub ✓" if ok else f" ⚠️ GitHub falhou: {err}"
+        st.success(msg)
+        st.balloons()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# NAVEGAÇÃO / MAIN
+# ════════════════════════════════════════════════════════════════════════════
+NAV_ITEMS = [("geral", "Visão Geral"), ("coord", "Por Coordenação"), ("audit", "Auditoria"),
+             ("export", "Exportação"), ("admin", "Área Administrativa")]
+
+
+def render_sidebar():
+    if "page" not in st.session_state:
+        st.session_state.page = "geral"
+    with st.sidebar:
+        if LOGO_B64:
+            st.markdown(f'<div style="background:#fff;border-radius:10px;padding:10px;text-align:center;'
+                        f'margin-bottom:10px"><img src="data:image/jpeg;base64,{LOGO_B64}" '
+                        f'style="width:104px"/></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height:1px;background:rgba(205,167,54,.28);margin:8px 4px 14px"></div>',
+                    unsafe_allow_html=True)
+        for key, label in NAV_ITEMS:
+            active = st.session_state.page == key
+            st.markdown(f'<div class="{"nav-active" if active else ""}">', unsafe_allow_html=True)
+            if st.button(label, key=f"nav_{key}", use_container_width=True):
+                st.session_state.page = key
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        pub = load_published()
+        st.markdown('<div style="flex:1;min-height:24px"></div>', unsafe_allow_html=True)
+        if pub.get("publicado_em"):
+            st.markdown(f'<div class="ig-pub"><div style="color:#EBD58A;font-weight:600;margin-bottom:5px">'
+                        f'<span class="dot"></span>Dados publicados</div><div>{pub["publicado_em"]}</div>'
+                        f'<div>{fmt_num(pub["total"])} registros · ref. {pub.get("referencia","—")}</div></div>',
+                        unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="ig-pub">● Sem dados publicados</div>', unsafe_allow_html=True)
+    return st.session_state.page
+
+
+def main():
+    inject_css()
+    page = render_sidebar()
+    pub = load_published()
+    registros = pub.get("registros", [])
+    ref = pub.get("referencia") or "01/07/2026"
+
+    if page == "geral":
+        page_geral(registros, ref)
+    elif page == "coord":
+        page_coordenacao(registros, ref)
+    elif page == "audit":
+        page_auditoria(registros, ref)
+    elif page == "export":
+        page_exportacao(registros, ref)
+    elif page == "admin":
+        page_admin()
+
+
+if __name__ == "__main__":
+    main()

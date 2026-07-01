@@ -1,25 +1,51 @@
-# CODING AGENTS: READ THIS FIRST
+# IGSA · Gestão de Prazos Preclusivos
 
-This is a **handoff bundle** from Claude Design (claude.ai/design).
+Painel Streamlit da Controladoria Jurídica — **Imaculada Gordiano Sociedade de Advogados**.
 
-A user mocked up designs in HTML/CSS/JS using an AI design tool, then exported this bundle so a coding agent can implement the designs for real.
+App único (`app.py`) que carrega a exportação do LegalOne (`.xlsx`), aplica as regras de
+negócio da Controladoria, publica os dados e exibe o painel público (Visão Geral, Por
+Coordenação, Auditoria e Exportação). Toda a lógica segue o **Manual de Configuração —
+Revisão 2 (Junho/2026)**.
 
-## What you should do — IMPORTANT
+## Executar localmente
 
-**Read the chat transcripts first.** There are 1 chat transcript(s) in `chats/`. The transcripts show the full back-and-forth between the user and the design assistant — they tell you **what the user actually wants** and **where they landed** after iterating. Don't skip them. The final HTML files are the output, but the chat is where the intent lives.
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
 
-**Read `project/Painel de Prazos.dc.html` in full.** The user had this file open when they triggered the handoff, so it's almost certainly the primary design they want built. Read it top to bottom — don't skim. Then **follow its imports**: open every file it pulls in (shared components, CSS, scripts) so you understand how the pieces fit together before you start implementing.
+O painel abre já populado a partir de `dados_publicados.json` (carga de exemplo, ref.
+01/07/2026, gerada da planilha real em `project/uploads/`). Para carregar uma nova base,
+use **Área Administrativa → Carregar planilha → Publicar**.
 
-**If anything is ambiguous, ask the user to confirm before you start implementing.** It's much cheaper to clarify scope up front than to build the wrong thing.
+## Fluxo de dados
 
-## About the design files
+1. **Área Administrativa** (uso interno): upload do `.xlsx` → validação automática →
+   seleção manual de coordenador para responsáveis não mapeados → **Publicar** (grava
+   `dados_publicados.json` e, com token, faz commit no GitHub).
+2. **Painel público**: lê `dados_publicados.json` e exibe cards, gráficos, tabelas
+   coloridas por prazo e a tabela **Prazos por responsável**.
 
-The design medium is **HTML/CSS/JS** — these are prototypes, not production code. Your job is to **recreate them pixel-perfectly** in whatever technology makes sense for the target codebase (React, Vue, native, whatever fits). Match the visual output; don't copy the prototype's internal structure unless it happens to fit.
+## Onde ajustar as configurações (Manual, seção 18)
 
-**Don't render these files in a browser or take screenshots unless the user asks you to.** Everything you need — dimensions, colors, layout rules — is spelled out in the source. Read the HTML and CSS directly; a screenshot won't tell you anything they don't.
+Tudo fica no topo de `app.py`, no bloco **CONSTANTES**:
 
-## Bundle contents
+| Item | Constante |
+|------|-----------|
+| A/B · Coordenadores e executores | `COORD_MAP` |
+| C · Responsável inativo | _descontinuado — sem filtro por status de responsável_ |
+| D · Excluir dos painéis | `EXCLUDED_SET` |
+| E · Ocultar coordenação | `HIDDEN_COORDS` |
+| F · Normalização de tipos | `normalizar_tipo()` |
+| G · Feriados (virada de ano) | `HOLIDAYS_2026` / `HOLIDAYS_NP` |
+| H · Horizonte do filtro (DU ≤ 1) | `DU_LIMIT` |
+| I · Repositório de publicação | `GITHUB_REPO` |
 
-- `README.md` — this file
-- `chats/` — conversation transcripts (read these!)
-- `project/` — the `import streamlit as stimport pandas as pdimport numpy as npimport json, re, i` project files (HTML prototypes, assets, components)
+## Estrutura
+
+```
+app.py                     # aplicação Streamlit (dados + UI redesenhada)
+dados_publicados.json      # carga publicada (seed de exemplo)
+requirements.txt
+project/                   # bundle de design original + assets + planilhas de teste
+```
