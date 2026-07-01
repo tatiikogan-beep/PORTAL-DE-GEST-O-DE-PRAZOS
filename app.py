@@ -545,15 +545,6 @@ def exportar_xlsx_filtrado(rows):
     return buf
 
 
-def exportar_csv(rows):
-    lines = [";".join(COLS_DETAIL)]
-    for r in rows:
-        d = _to_detail(r)
-        vals = [str(d.get(c, "")).replace(";", ",").replace("\n", " ") for c in COLS_DETAIL]
-        lines.append(";".join(f'"{v}"' for v in vals))
-    return ("﻿" + "\n".join(lines)).encode("utf-8")
-
-
 # ════════════════════════════════════════════════════════════════════════════
 # CAMADA VISUAL — CSS + componentes (design system vinho/dourado)
 # ════════════════════════════════════════════════════════════════════════════
@@ -1054,7 +1045,7 @@ def page_exportacao(registros, ref):
 
     st.markdown('<div class="ig-sec">Relatório por coordenação</div>', unsafe_allow_html=True)
     st.caption("Cada arquivo traz abas de Resumo, Prazos, Diversos e Inconsistências, com formatação condicional por prazo.")
-    coords = sorted({r["coord"] for r in active})
+    coords = sorted({r["coord"] for r in active if r["coord"] != SEM_COORD})
     grid = st.columns(3)
     for i, ck in enumerate(coords):
         crows = [r for r in active if r["coord"] == ck]
@@ -1070,12 +1061,6 @@ def page_exportacao(registros, ref):
                                    f"IGSA_{disp[:28].replace(' ', '_')}.xlsx",
                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                    key=f"dl_{i}")
-
-    st.markdown('<div class="ig-sec">Exportação geral</div>', unsafe_allow_html=True)
-    g1, g2 = st.columns(2)
-    g1.download_button("📥 Exportar tudo (Excel)", exportar_xlsx_filtrado(active), "IGSA_Geral.xlsx",
-                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    g2.download_button("📄 Exportar tudo (CSV)", exportar_csv(active), "IGSA_Geral.csv", "text/csv")
 
 
 def page_admin():
