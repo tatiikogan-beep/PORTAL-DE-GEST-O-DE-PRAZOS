@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/imaculada-gordiano-design-system-59e5d500-3e17-4657-b960-9402f29e4367/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/imaculada-gordiano-design-system-59e5d500-3e17-4657-b960-9402f29e4367/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/imaculada-gordiano-design-system-59e5d500-3e17-4657-b960-9402f29e4367/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/imaculada-gordiano-design-system-59e5d500-3e17-4657-b960-9402f29e4367/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/imaculada-gordiano-design-system-59e5d500-3e17-4657-b960-9402f29e4367/styles.css">
+  <script src="registros.js"></script>
+  <script src="_ds/imaculada-gordiano-design-system-59e5d500-3e17-4657-b960-9402f29e4367/_ds_bundle.js"></script>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0}
+    body{background:var(--surface-page);font-family:var(--font-sans);color:var(--ink-900);-webkit-font-smoothing:antialiased}
+    select:focus,input:focus{outline:none;box-shadow:var(--ring)}
+    button{font-family:var(--font-sans)}
+    ::-webkit-scrollbar{width:10px;height:10px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:var(--sand-400);border-radius:6px;border:2px solid var(--surface-page)}
+    @keyframes ig-spin{to{transform:rotate(360deg)}}
+    .ig-page{opacity:1}
+    .ig-navbtn:hover{background:rgba(255,255,255,.08)!important}
+    .ig-row:hover{filter:brightness(.97)}
+    .ig-xbtn:hover{filter:brightness(1.08)}
+  </style>
+</helmet>
+<div style="display:flex;min-height:100vh">
+
+  <aside style="width:262px;flex:none;background:var(--gradient-wine);position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:24px 16px;box-shadow:var(--shadow-md)">
+    <div style="background:#fff;border-radius:10px;padding:10px;box-shadow:var(--shadow-sm);display:flex;align-items:center;justify-content:center;align-self:center;margin-bottom:2px">
+      <img src="assets/logo-igsa.jpg" alt="Imaculada Gordiano — Sociedade de Advogados" style="width:104px;display:block" />
+    </div>
+    <div style="height:1px;background:rgba(205,167,54,.28);margin:20px 4px"></div>
+    <nav style="display:flex;flex-direction:column;gap:3px">
+      <button class="ig-navbtn" onClick="{{ nav.geral.onClick }}" style="position:relative;display:flex;align-items:center;gap:12px;width:100%;text-align:left;appearance:none;border:none;cursor:pointer;background:{{ nav.geral.bg }};color:{{ nav.geral.color }};padding:11px 14px 11px 18px;border-radius:8px;font-size:13.5px;font-weight:{{ nav.geral.fw }};transition:background .15s">
+        <span style="position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:{{ nav.geral.bar }}"></span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+        <span>Visão Geral</span>
+      </button>
+      <button class="ig-navbtn" onClick="{{ nav.coord.onClick }}" style="position:relative;display:flex;align-items:center;gap:12px;width:100%;text-align:left;appearance:none;border:none;cursor:pointer;background:{{ nav.coord.bg }};color:{{ nav.coord.color }};padding:11px 14px 11px 18px;border-radius:8px;font-size:13.5px;font-weight:{{ nav.coord.fw }};transition:background .15s">
+        <span style="position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:{{ nav.coord.bar }}"></span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        <span>Por Coordenação</span>
+      </button>
+      <button class="ig-navbtn" onClick="{{ nav.audit.onClick }}" style="position:relative;display:flex;align-items:center;gap:12px;width:100%;text-align:left;appearance:none;border:none;cursor:pointer;background:{{ nav.audit.bg }};color:{{ nav.audit.color }};padding:11px 14px 11px 18px;border-radius:8px;font-size:13.5px;font-weight:{{ nav.audit.fw }};transition:background .15s">
+        <span style="position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:{{ nav.audit.bar }}"></span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        <span>Auditoria</span>
+      </button>
+      <button class="ig-navbtn" onClick="{{ nav.export.onClick }}" style="position:relative;display:flex;align-items:center;gap:12px;width:100%;text-align:left;appearance:none;border:none;cursor:pointer;background:{{ nav.export.bg }};color:{{ nav.export.color }};padding:11px 14px 11px 18px;border-radius:8px;font-size:13.5px;font-weight:{{ nav.export.fw }};transition:background .15s">
+        <span style="position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:{{ nav.export.bar }}"></span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        <span>Exportação</span>
+      </button>
+      <button class="ig-navbtn" onClick="{{ nav.admin.onClick }}" style="position:relative;display:flex;align-items:center;gap:12px;width:100%;text-align:left;appearance:none;border:none;cursor:pointer;background:{{ nav.admin.bg }};color:{{ nav.admin.color }};padding:11px 14px 11px 18px;border-radius:8px;font-size:13.5px;font-weight:{{ nav.admin.fw }};transition:background .15s">
+        <span style="position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:{{ nav.admin.bar }}"></span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        <span>Área Administrativa</span>
+      </button>
+    </nav>
+    <div style="flex:1"></div>
+    <div style="background:rgba(0,0,0,.16);border:1px solid rgba(205,167,54,.22);border-radius:10px;padding:13px 15px;color:var(--text-on-wine-muted);font-size:11.5px;line-height:1.55">
+      <div style="display:flex;align-items:center;gap:7px;color:var(--gold-200);font-weight:600;margin-bottom:6px">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--green-400)"></span> Dados publicados
+      </div>
+      <div>{{ published.when }}</div>
+      <div>{{ published.total }} registros · ref. {{ published.ref }}</div>
+    </div>
+  </aside>
+
+  <main style="flex:1;min-width:0;display:flex;flex-direction:column">
+    <div style="max-width:1180px;width:100%;margin:0 auto;padding:32px 40px 60px">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:26px">
+        <div>
+          <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-600);font-weight:600;margin-bottom:7px">{{ page.kicker }}</div>
+          <h1 style="margin:0;font-family:var(--font-serif);font-size:38px;font-weight:600;color:var(--ink-900);line-height:1.12">{{ page.title }}</h1>
+          <div style="margin-top:10px;font-size:13px">
+            <sc-if value="{{ isGeral }}" hint-placeholder-val="{{ true }}">
+              <span style="display:inline-flex;align-items:center;gap:7px;color:var(--gold-600);font-weight:600;font-size:12.5px">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Referência 01/07/2026
+              </span>
+            </sc-if>
+            <sc-if value="{{ notGeral }}" hint-placeholder-val="{{ false }}">
+              <span style="color:var(--text-muted)">{{ page.sub }}</span>
+            </sc-if>
+          </div>
+        </div>
+        <x-import component-from-global-scope="ImaculadaGordianoDesignSystem_59e5d5.Button" variant="accent" size="sm" on-click="{{ onControladoria }}" hint-size="180px,36px">Controladoria Jurídica</x-import>
+      </div>
+
+      <sc-if value="{{ isGeral }}" hint-placeholder-val="{{ true }}">
+        <div class="ig-page">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px">
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)">Coordenador</span><select value="{{ f.coord }}" onChange="{{ onCoord }}" style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:#fff;border:1px solid var(--border-soft);border-radius:6px;padding:8px 10px;cursor:pointer;min-width:210px"><sc-for list="{{ coordOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)">Tipo</span><select value="{{ f.tipo }}" onChange="{{ onTipo }}" style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:#fff;border:1px solid var(--border-soft);border-radius:6px;padding:8px 10px;cursor:pointer;min-width:150px"><sc-for list="{{ tipoOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)">Período</span><select value="{{ f.periodo }}" onChange="{{ onPeriodo }}" style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:#fff;border:1px solid var(--border-soft);border-radius:6px;padding:8px 10px;cursor:pointer;min-width:160px"><sc-for list="{{ periodoOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+            </div>
+            <div>
+              <div style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);margin-bottom:5px">Layout</div>
+              <div style="display:inline-flex;background:var(--sand-200);border-radius:8px;padding:3px">
+                <button onClick="{{ onLayoutA }}" style="appearance:none;border:none;cursor:pointer;background:{{ segABg }};color:{{ segAColor }};padding:8px 16px;border-radius:6px;font-size:12.5px;font-weight:600;box-shadow:{{ segASh }}">Panorama</button>
+                <button onClick="{{ onLayoutB }}" style="appearance:none;border:none;cursor:pointer;background:{{ segBBg }};color:{{ segBColor }};padding:8px 16px;border-radius:6px;font-size:12.5px;font-weight:600;box-shadow:{{ segBSh }}">Prioridades</button>
+              </div>
+            </div>
+          </div>
+
+          <sc-if value="{{ isGeralA }}" hint-placeholder-val="{{ true }}">
+            <div class="ig-page">
+              <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px">
+                <sc-for list="{{ metricCards }}" as="c" hint-placeholder-count="7">
+                  <div style="position:relative;background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:15px 16px;box-shadow:var(--shadow-sm);overflow:hidden">
+                    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:{{ c.accent }}"></div>
+                    <div style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--gold-600);font-weight:700;margin-bottom:7px">{{ c.k }}</div>
+                    <div style="font-family:var(--font-serif);font-size:30px;font-weight:600;color:var(--ink-900);line-height:1">{{ c.v }}</div>
+                    
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:20px;margin:20px 0">
+                <div style="background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:22px 24px;box-shadow:var(--shadow-sm)">
+                  <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 18px">Distribuição por coordenador</div>
+                  <sc-for list="{{ coordBars }}" as="b" hint-placeholder-count="7">
+                    <div class="ig-row" style="display:flex;align-items:center;gap:12px;margin-bottom:11px">
+                      <div style="width:150px;flex:none;font-size:12px;color:var(--text-body);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.label }}</div>
+                      <div style="flex:1;height:20px;background:var(--sand-200);border-radius:4px;overflow:hidden"><div style="height:100%;width:{{ b.pct }};background:{{ b.color }};border-radius:4px"></div></div>
+                      <div style="width:28px;flex:none;font-size:13px;font-weight:700;color:var(--ink-900)">{{ b.value }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:22px 24px;box-shadow:var(--shadow-sm)">
+                  <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 18px">Composição por tipo</div>
+                  <div style="display:flex;align-items:center;gap:22px">
+                    <div style="width:132px;height:132px;border-radius:50%;background:{{ donutGradient }};position:relative;flex:none">
+                      <div style="position:absolute;inset:24px;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center">
+                        <div style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink-900);line-height:1">{{ donutTotal }}</div>
+                        <div style="font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-top:2px">total</div>
+                      </div>
+                    </div>
+                    <div style="flex:1;min-width:0">
+                      <sc-for list="{{ typeLegend }}" as="t" hint-placeholder-count="6">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+                          <span style="width:10px;height:10px;border-radius:2px;flex:none;background:{{ t.color }}"></span>
+                          <span style="flex:1;font-size:12px;color:var(--text-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.label }}</span>
+                          <span style="font-size:12px;font-weight:700;color:var(--ink-900)">{{ t.value }}</span>
+                          <span style="font-size:10.5px;color:var(--text-muted);width:36px;text-align:right">{{ t.pct }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style="background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:22px 24px;box-shadow:var(--shadow-sm)">
+                <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 18px">Responsáveis com mais pendências</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 32px">
+                  <sc-for list="{{ respBars }}" as="b" hint-placeholder-count="10">
+                    <div class="ig-row" style="display:flex;align-items:center;gap:12px">
+                      <div style="width:170px;flex:none;font-size:12px;color:var(--text-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.label }}</div>
+                      <div style="flex:1;height:16px;background:var(--sand-200);border-radius:4px;overflow:hidden"><div style="height:100%;width:{{ b.pct }};background:var(--wine-600);border-radius:4px"></div></div>
+                      <div style="width:24px;flex:none;font-size:12.5px;font-weight:700;color:var(--ink-900)">{{ b.value }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isGeralB }}" hint-placeholder-val="{{ false }}">
+            <div class="ig-page">
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px">
+                <sc-for list="{{ statusTiles }}" as="t" hint-placeholder-count="4">
+                  <div style="background:{{ t.bg }};color:{{ t.fg }};border-radius:12px;padding:20px 22px;box-shadow:var(--shadow-sm)">
+                    <div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">{{ t.label }}</div>
+                    <div style="font-family:var(--font-serif);font-size:46px;font-weight:600;line-height:1.05;margin:8px 0 2px">{{ t.value }}</div>
+                    <div style="font-size:12px;opacity:.82">{{ t.desc }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:20px;margin-bottom:20px">
+                <div style="background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:22px 24px;box-shadow:var(--shadow-sm)">
+                  <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 18px">Composição por tipo</div>
+                  <div style="display:flex;align-items:center;gap:22px">
+                    <div style="width:132px;height:132px;border-radius:50%;background:{{ donutGradient }};position:relative;flex:none">
+                      <div style="position:absolute;inset:24px;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center">
+                        <div style="font-family:var(--font-serif);font-size:26px;font-weight:600;color:var(--ink-900);line-height:1">{{ donutTotal }}</div>
+                        <div style="font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-top:2px">total</div>
+                      </div>
+                    </div>
+                    <div style="flex:1;min-width:0">
+                      <sc-for list="{{ typeLegend }}" as="t" hint-placeholder-count="6">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+                          <span style="width:10px;height:10px;border-radius:2px;flex:none;background:{{ t.color }}"></span>
+                          <span style="flex:1;font-size:12px;color:var(--text-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.label }}</span>
+                          <span style="font-size:12px;font-weight:700;color:var(--ink-900)">{{ t.value }}</span>
+                          <span style="font-size:10.5px;color:var(--text-muted);width:36px;text-align:right">{{ t.pct }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+                <div style="background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:22px 24px;box-shadow:var(--shadow-sm)">
+                  <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 18px">Responsáveis com mais pendências</div>
+                  <sc-for list="{{ respBars }}" as="b" hint-placeholder-count="10">
+                    <div class="ig-row" style="display:flex;align-items:center;gap:12px;margin-bottom:9px">
+                      <div style="width:180px;flex:none;font-size:12px;color:var(--text-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.label }}</div>
+                      <div style="flex:1;height:16px;background:var(--sand-200);border-radius:4px;overflow:hidden"><div style="height:100%;width:{{ b.pct }};background:var(--wine-600);border-radius:4px"></div></div>
+                      <div style="width:24px;flex:none;font-size:12.5px;font-weight:700;color:var(--ink-900)">{{ b.value }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:22px 24px;box-shadow:var(--shadow-sm)">
+                <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 18px">Distribuição por coordenador</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 32px">
+                  <sc-for list="{{ coordBars }}" as="b" hint-placeholder-count="8">
+                    <div class="ig-row" style="display:flex;align-items:center;gap:12px">
+                      <div style="width:160px;flex:none;font-size:12px;color:var(--text-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.label }}</div>
+                      <div style="flex:1;height:16px;background:var(--sand-200);border-radius:4px;overflow:hidden"><div style="height:100%;width:{{ b.pct }};background:{{ b.color }};border-radius:4px"></div></div>
+                      <div style="width:24px;flex:none;font-size:12.5px;font-weight:700;color:var(--ink-900)">{{ b.value }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+          <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:26px 0 6px">Prazos por responsável</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Responsável e seu Coordenador, com a situação dos prazos por status.</div>
+          <div style="overflow:auto;border:1px solid var(--border-soft);border-radius:10px;background:#fff;max-height:520px">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">
+              <thead><tr>
+                <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:20%">Responsável</th>
+                <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:17%">Coordenador</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-700);position:sticky;top:0;width:10.5%;line-height:1.2">Total</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:10.5%;line-height:1.2">D-1</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:10.5%;line-height:1.2">Fatal</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:10.5%;line-height:1.2">Vencido</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:10.5%;line-height:1.2">No prazo</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:var(--wine-800);background:var(--gold-300);position:sticky;top:0;width:10.5%;line-height:1.2">Em atraso</th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ execRows }}" as="r" hint-placeholder-count="12">
+                  <tr class="ig-row" style="border-bottom:1px solid var(--border-soft)">
+                    <td style="padding:7px 12px;color:var(--ink-900);font-weight:500">{{ r.exec }}</td>
+                    <td style="padding:7px 12px;color:var(--text-muted);font-size:11.5px">{{ r.coord }}</td>
+                    <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--wine-700)">{{ r.total }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:#6b5410;font-weight:600;background:{{ r.d1Bg }}">{{ r.d1 }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:#8E1220;font-weight:600;background:{{ r.fatalBg }}">{{ r.fatal }}</td>
+                    <td style="padding:7px 10px;text-align:center;font-weight:700;color:{{ r.vencFg }};background:{{ r.vencBg }}">{{ r.venc }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:#1E6E3E;font-weight:600;background:{{ r.dentroBg }}">{{ r.dentro }}</td>
+                    <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--wine-700);background:{{ r.atrasoBg }}">{{ r.atraso }}</td>
+                  </tr>
+                </sc-for>
+                <tr style="border-top:2px solid var(--wine-600);background:var(--sand-100)">
+                  <td colspan="2" style="padding:9px 12px;font-weight:700;color:var(--ink-900)">{{ execTotal.exec }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:var(--wine-700)">{{ execTotal.total }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:#6b5410;background:{{ execTotal.d1Bg }}">{{ execTotal.d1 }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:#8E1220;background:{{ execTotal.fatalBg }}">{{ execTotal.fatal }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:{{ execTotal.vencFg }};background:{{ execTotal.vencBg }}">{{ execTotal.venc }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:#1E6E3E;background:{{ execTotal.dentroBg }}">{{ execTotal.dentro }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:var(--wine-800);background:{{ execTotal.atrasoBg }}">{{ execTotal.atraso }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isCoord }}" hint-placeholder-val="{{ false }}">
+        <div class="ig-page">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)">Coordenador</span><select value="{{ f.coord }}" onChange="{{ onCoord }}" style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:#fff;border:1px solid var(--border-soft);border-radius:6px;padding:8px 10px;cursor:pointer;min-width:210px"><sc-for list="{{ coordOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)">Responsável</span><select value="{{ f.resp }}" onChange="{{ onResp }}" style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:#fff;border:1px solid var(--border-soft);border-radius:6px;padding:8px 10px;cursor:pointer;min-width:200px"><sc-for list="{{ respOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)">Tipo</span><select value="{{ f.tipo }}" onChange="{{ onTipo }}" style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:#fff;border:1px solid var(--border-soft);border-radius:6px;padding:8px 10px;cursor:pointer;min-width:140px"><sc-for list="{{ tipoOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)">Período</span><select value="{{ f.periodo }}" onChange="{{ onPeriodo }}" style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:#fff;border:1px solid var(--border-soft);border-radius:6px;padding:8px 10px;cursor:pointer;min-width:150px"><sc-for list="{{ periodoOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+            <label style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:160px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)">Buscar processo / cliente</span><input value="{{ f.busca }}" onInput="{{ onBusca }}" placeholder="0001234-56…" style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:#fff;border:1px solid var(--border-soft);border-radius:6px;padding:9px 11px" /></label>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:22px">
+            <sc-for list="{{ metricCards }}" as="c" hint-placeholder-count="7">
+              <div style="position:relative;background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:15px 16px;box-shadow:var(--shadow-sm);overflow:hidden">
+                <div style="position:absolute;top:0;left:0;right:0;height:3px;background:{{ c.accent }}"></div>
+                <div style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--gold-600);font-weight:700;margin-bottom:7px">{{ c.k }}</div>
+                <div style="font-family:var(--font-serif);font-size:28px;font-weight:600;color:var(--ink-900);line-height:1">{{ c.v }}</div>
+                
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 12px">Resumo por responsável</div>
+          <div style="overflow:auto;border:1px solid var(--border-soft);border-radius:10px;background:#fff;margin-bottom:26px;max-height:300px">
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+              <thead><tr>
+                <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Responsável</th>
+                <th style="padding:9px 10px;text-align:center;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Prazo</th>
+                <th style="padding:9px 10px;text-align:center;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Aud.</th>
+                <th style="padding:9px 10px;text-align:center;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Pauta</th>
+                <th style="padding:9px 10px;text-align:center;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Perícia</th>
+                <th style="padding:9px 10px;text-align:center;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Public.</th>
+                <th style="padding:9px 10px;text-align:center;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-700);position:sticky;top:0">Total</th>
+                <th style="padding:9px 10px;text-align:center;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Incons.</th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ resumoRows }}" as="r" hint-placeholder-count="6">
+                  <tr class="ig-row" style="border-bottom:1px solid var(--border-soft)">
+                    <td style="padding:7px 12px;color:var(--ink-900);font-weight:500">{{ r.resp }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:var(--text-body)">{{ r.prazo }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:var(--text-body)">{{ r.aud }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:var(--text-body)">{{ r.pauta }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:var(--text-body)">{{ r.per }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:var(--text-body)">{{ r.pub }}</td>
+                    <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--wine-700)">{{ r.total }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:var(--gold-600);font-weight:600">{{ r.inc }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 12px">
+            <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600">Detalhamento · exibindo {{ detailShown }} de {{ detailCount }} prazos</div>
+            <button onClick="{{ onExportFiltrado }}" class="ig-xbtn" style="appearance:none;border:1px solid transparent;cursor:pointer;background:var(--wine-600);color:var(--gold-100);padding:8px 15px;border-radius:8px;font-size:12.5px;font-weight:600;box-shadow:var(--shadow-wine)">Exportar seleção (Excel)</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:14px 18px;align-items:center;background:#fff;border:1px solid var(--border-soft);border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:11px">
+            <strong style="color:var(--wine-600);letter-spacing:.05em;font-size:10px">LEGENDA</strong>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:13px;height:13px;border-radius:3px;background:#E4F3E9;border:1px solid rgba(0,0,0,.08)"></span>No prazo</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:13px;height:13px;border-radius:3px;background:#FAEFC9;border:1px solid rgba(0,0,0,.08)"></span>Amanhã (D-1)</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:13px;height:13px;border-radius:3px;background:#FADFE3;border:1px solid rgba(0,0,0,.08)"></span>Vence hoje</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:13px;height:13px;border-radius:3px;background:#F4D6DA;border:1px solid rgba(0,0,0,.08)"></span>Vencido / pendente</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:13px;height:13px;border-radius:3px;background:#F7E3CE;border:1px solid rgba(0,0,0,.08)"></span>Inconsistência</span>
+          </div>
+          <sc-if value="{{ hasDetail }}" hint-placeholder-val="{{ true }}">
+            <div style="overflow:auto;border:1px solid var(--border-soft);border-radius:10px;background:#fff;max-height:460px">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead><tr>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;white-space:nowrap">Processo</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Cliente</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Tipo</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Descrição</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Coordenador</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Responsável</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;white-space:nowrap">Conclusão</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;white-space:nowrap">Prazo</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Inconsistência</th>
+                </tr></thead>
+                <tbody>
+                  <sc-for list="{{ detailRows }}" as="r" hint-placeholder-count="10">
+                    <tr class="ig-row" style="background:{{ r.rowBg }};color:{{ r.rowFg }}">
+                      <td style="padding:7px 12px;font-family:var(--font-mono);font-size:11px;white-space:nowrap">{{ r.proc }}</td>
+                      <td style="padding:7px 12px">{{ r.cliente }}</td>
+                      <td style="padding:7px 12px;white-space:nowrap">{{ r.tipo }}</td>
+                      <td style="padding:7px 12px">{{ r.desc }}</td>
+                      <td style="padding:7px 12px">{{ r.coord }}</td>
+                      <td style="padding:7px 12px">{{ r.resp }}</td>
+                      <td style="padding:7px 12px;font-family:var(--font-mono);font-size:11px;white-space:nowrap">{{ r.conclusao }}</td>
+                      <td style="padding:7px 12px;font-weight:600;white-space:nowrap">{{ r.duLabel }}</td>
+                      <td style="padding:7px 12px;font-size:11px">{{ r.incons }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noDetail }}" hint-placeholder-val="{{ false }}">
+            <div style="background:#fff;border:1px solid var(--border-soft);border-radius:10px;padding:40px;text-align:center;color:var(--text-muted);font-size:13px">Nenhuma atividade para os filtros selecionados. Você está em dia.</div>
+          </sc-if>
+          <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:28px 0 6px">Prazos por responsável</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Responsável e seu Coordenador, com a situação dos prazos por status.</div>
+          <div style="overflow:auto;border:1px solid var(--border-soft);border-radius:10px;background:#fff;max-height:420px">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">
+              <thead><tr>
+                <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:20%">Responsável</th>
+                <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:17%">Coordenador</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-700);position:sticky;top:0;width:10.5%;line-height:1.2">Total</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:10.5%;line-height:1.2">D-1</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:10.5%;line-height:1.2">Fatal</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:10.5%;line-height:1.2">Vencido</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;width:10.5%;line-height:1.2">No prazo</th>
+                <th style="padding:8px 4px;text-align:center;font-size:9.5px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;color:var(--wine-800);background:var(--gold-300);position:sticky;top:0;width:10.5%;line-height:1.2">Em atraso</th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ execRows }}" as="r" hint-placeholder-count="8">
+                  <tr class="ig-row" style="border-bottom:1px solid var(--border-soft)">
+                    <td style="padding:7px 12px;color:var(--ink-900);font-weight:500">{{ r.exec }}</td>
+                    <td style="padding:7px 12px;color:var(--text-muted);font-size:11.5px">{{ r.coord }}</td>
+                    <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--wine-700)">{{ r.total }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:#6b5410;font-weight:600;background:{{ r.d1Bg }}">{{ r.d1 }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:#8E1220;font-weight:600;background:{{ r.fatalBg }}">{{ r.fatal }}</td>
+                    <td style="padding:7px 10px;text-align:center;font-weight:700;color:{{ r.vencFg }};background:{{ r.vencBg }}">{{ r.venc }}</td>
+                    <td style="padding:7px 10px;text-align:center;color:#1E6E3E;font-weight:600;background:{{ r.dentroBg }}">{{ r.dentro }}</td>
+                    <td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--wine-700);background:{{ r.atrasoBg }}">{{ r.atraso }}</td>
+                  </tr>
+                </sc-for>
+                <tr style="border-top:2px solid var(--wine-600);background:var(--sand-100)">
+                  <td colspan="2" style="padding:9px 12px;font-weight:700;color:var(--ink-900)">{{ execTotal.exec }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:var(--wine-700)">{{ execTotal.total }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:#6b5410;background:{{ execTotal.d1Bg }}">{{ execTotal.d1 }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:#8E1220;background:{{ execTotal.fatalBg }}">{{ execTotal.fatal }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:{{ execTotal.vencFg }};background:{{ execTotal.vencBg }}">{{ execTotal.venc }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:#1E6E3E;background:{{ execTotal.dentroBg }}">{{ execTotal.dentro }}</td>
+                  <td style="padding:9px 10px;text-align:center;font-weight:700;color:var(--wine-800);background:{{ execTotal.atrasoBg }}">{{ execTotal.atraso }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isAudit }}" hint-placeholder-val="{{ false }}">
+        <div class="ig-page">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)">Coordenador</span><select value="{{ f.coord }}" onChange="{{ onCoord }}" style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:#fff;border:1px solid var(--border-soft);border-radius:6px;padding:8px 10px;cursor:pointer;min-width:210px"><sc-for list="{{ coordOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)">Responsável</span><select value="{{ f.resp }}" onChange="{{ onResp }}" style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:#fff;border:1px solid var(--border-soft);border-radius:6px;padding:8px 10px;cursor:pointer;min-width:200px"><sc-for list="{{ respOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+            <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted)">Período</span><select value="{{ f.periodo }}" onChange="{{ onPeriodo }}" style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:#fff;border:1px solid var(--border-soft);border-radius:6px;padding:8px 10px;cursor:pointer;min-width:150px"><sc-for list="{{ periodoOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+          </div>
+          <div style="background:linear-gradient(100deg,var(--gold-50),#fff);border:1px solid var(--gold-200);border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:13px;color:var(--ink-700)">Registros com divergência entre tipo, descrição e data de conclusão. Revise antes de exportar os relatórios das coordenações.</div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px">
+            <sc-for list="{{ auditCards }}" as="c" hint-placeholder-count="5">
+              <div style="position:relative;background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:15px 16px;box-shadow:var(--shadow-sm);overflow:hidden">
+                <div style="position:absolute;top:0;left:0;right:0;height:3px;background:{{ c.accent }}"></div>
+                <div style="font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold-600);font-weight:700;margin-bottom:7px;min-height:24px">{{ c.k }}</div>
+                <div style="font-family:var(--font-serif);font-size:28px;font-weight:600;color:var(--ink-900);line-height:1">{{ c.v }}</div>
+                
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 12px">Registros com inconsistência</div>
+          <sc-if value="{{ hasAudit }}" hint-placeholder-val="{{ true }}">
+            <div style="overflow:auto;border:1px solid var(--border-soft);border-radius:10px;background:#fff;max-height:480px">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead><tr>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;white-space:nowrap">Processo</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Cliente</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Tipo</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Coordenador</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Responsável</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0;white-space:nowrap">Conclusão</th>
+                  <th style="padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#fff;background:var(--wine-600);position:sticky;top:0">Inconsistência</th>
+                </tr></thead>
+                <tbody>
+                  <sc-for list="{{ auditRows }}" as="r" hint-placeholder-count="8">
+                    <tr class="ig-row" style="background:#F7E3CE;color:#7a4a1f">
+                      <td style="padding:7px 12px;font-family:var(--font-mono);font-size:11px;white-space:nowrap">{{ r.proc }}</td>
+                      <td style="padding:7px 12px">{{ r.cliente }}</td>
+                      <td style="padding:7px 12px;white-space:nowrap">{{ r.tipo }}</td>
+                      <td style="padding:7px 12px">{{ r.coord }}</td>
+                      <td style="padding:7px 12px">{{ r.resp }}</td>
+                      <td style="padding:7px 12px;font-family:var(--font-mono);font-size:11px;white-space:nowrap">{{ r.conclusao }}</td>
+                      <td style="padding:7px 12px;font-weight:500">{{ r.incons }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noAudit }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--green-100);border:1px solid var(--green-400);border-radius:10px;padding:26px;text-align:center;color:var(--green-700);font-size:14px;font-weight:500">Nenhuma inconsistência detectada nos filtros selecionados.</div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isExport }}" hint-placeholder-val="{{ false }}">
+        <div class="ig-page">
+          <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 4px">Relatório por coordenação</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px">Cada arquivo traz abas de Resumo, Prazos, Audiências e Inconsistências, com formatação condicional por prazo.</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px">
+            <sc-for list="{{ exportCards }}" as="c" hint-placeholder-count="9">
+              <div style="background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:4px">
+                <div style="font-weight:600;font-size:14.5px;color:var(--ink-900)">{{ c.coord }}</div>
+                <div style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:12px">{{ c.total }} atividades · {{ c.prazos }} prazos · {{ c.aud }} audiências · {{ c.inc }} inconsist.</div>
+                <button onClick="{{ c.onDownload }}" class="ig-xbtn" style="appearance:none;border:1px solid var(--border-soft);cursor:pointer;background:var(--sand-50);color:var(--wine-600);padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:600;align-self:flex-start;display:inline-flex;align-items:center;gap:7px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Baixar Excel</button>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 14px">Exportação geral</div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            <button onClick="{{ onExportXlsx }}" class="ig-xbtn" style="appearance:none;border:1px solid transparent;cursor:pointer;background:var(--wine-600);color:var(--gold-100);padding:11px 20px;border-radius:8px;font-size:13.5px;font-weight:600;box-shadow:var(--shadow-wine);display:inline-flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Exportar tudo (Excel)</button>
+            <button onClick="{{ onExportCsv }}" class="ig-xbtn" style="appearance:none;border:1px solid var(--border-soft);cursor:pointer;background:#fff;color:var(--wine-600);padding:11px 20px;border-radius:8px;font-size:13.5px;font-weight:600;box-shadow:var(--shadow-xs)">Exportar tudo (CSV)</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+        <div class="ig-page">
+          <div style="display:flex;align-items:center;gap:10px;background:var(--gold-50);border:1px solid var(--gold-200);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:12.5px;color:var(--gold-600)">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            <span><strong>Área restrita.</strong> Uso exclusivo da equipe de Controladoria Jurídica.</span>
+          </div>
+
+          <div style="background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:22px 24px;box-shadow:var(--shadow-sm);margin-bottom:20px">
+            <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 4px">1 · Carregar planilha</div>
+            <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">Data de referência 30/06/2026 · Formato aceito: exportação LegalOne (.xlsx)</div>
+            <sc-if value="{{ uploadIdle }}" hint-placeholder-val="{{ true }}">
+              <div style="border:2px dashed var(--border-strong);border-radius:12px;padding:34px;text-align:center;background:var(--sand-50)">
+                <div style="font-size:14px;color:var(--text-body);margin-bottom:16px">Arraste a planilha aqui ou selecione o arquivo</div>
+                <button onClick="{{ onUpload }}" class="ig-xbtn" style="appearance:none;border:1px solid transparent;cursor:pointer;background:var(--wine-600);color:var(--gold-100);padding:10px 20px;border-radius:8px;font-size:13.5px;font-weight:600;box-shadow:var(--shadow-wine)">Selecionar arquivo Excel</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{ uploadProcessing }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:14px;padding:28px;justify-content:center;color:var(--text-body);font-size:14px">
+                <span style="width:22px;height:22px;border:3px solid var(--sand-300);border-top-color:var(--wine-600);border-radius:50%;display:inline-block;animation:ig-spin .8s linear infinite"></span>
+                Processando e validando a planilha…
+              </div>
+            </sc-if>
+            <sc-if value="{{ uploadDone }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:10px;background:var(--green-100);border:1px solid var(--green-400);border-radius:10px;padding:12px 16px;color:var(--green-700);font-size:13px;font-weight:500">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                {{ validLine }}
+              </div>
+            </sc-if>
+          </div>
+
+          <sc-if value="{{ uploadDone }}" hint-placeholder-val="{{ false }}">
+            <div class="ig-page">
+              <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:22px">
+                <sc-for list="{{ adminStats }}" as="c" hint-placeholder-count="5">
+                  <div style="position:relative;background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:15px 16px;box-shadow:var(--shadow-sm);overflow:hidden">
+                    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:{{ c.accent }}"></div>
+                    <div style="font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--gold-600);font-weight:700;margin-bottom:7px">{{ c.k }}</div>
+                    <div style="font-family:var(--font-serif);font-size:28px;font-weight:600;color:var(--ink-900);line-height:1">{{ c.v }}</div>
+                    
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:20px;margin-bottom:22px">
+                <div style="background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:20px 22px;box-shadow:var(--shadow-sm)">
+                  <div style="font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 12px">Distribuição por coordenação</div>
+                  <sc-for list="{{ semCoordList }}" as="s" hint-placeholder-count="3">
+                    <div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:13px">
+                      <span style="color:var(--ink-900)">{{ s.resp }}</span><span style="color:var(--gold-600);font-weight:600">{{ s.qtd }}</span>
+                    </div>
+                  </sc-for>
+                  <div style="font-size:11.5px;color:var(--text-muted);margin-top:12px">Prazos pendentes (D-1 ou pior) por coordenação na carga atual.</div>
+                </div>
+                <div style="background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:20px 22px;box-shadow:var(--shadow-sm)">
+                  <div style="font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 12px">Inconsistências por tipo</div>
+                  <sc-for list="{{ inconsResumo }}" as="i" hint-placeholder-count="4">
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:13px">
+                      <span style="width:8px;height:8px;border-radius:2px;background:var(--gold-400);flex:none"></span>
+                      <span style="flex:1;color:var(--ink-900)">{{ i.k }}</span>
+                      <span style="color:var(--gold-600);font-weight:700">{{ i.v }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="background:#fff;border:1px solid var(--border-soft);border-radius:12px;padding:22px 24px;box-shadow:var(--shadow-sm)">
+                <div style="font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--wine-600);font-weight:600;margin:0 0 4px">3 · Publicar dados</div>
+                <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">Ao publicar, o painel passa a exibir esta carga para toda a equipe.</div>
+                <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+                  <label style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:260px"><span style="font-size:11px;font-weight:600;color:var(--ink-900)">Identificação da carga</span><input value="{{ cargaId }}" readonly style="font-family:var(--font-sans);font-size:13px;color:var(--ink-900);background:var(--sand-50);border:1px solid var(--border-soft);border-radius:6px;padding:10px 12px" /></label>
+                  <button onClick="{{ onPublish }}" class="ig-xbtn" style="appearance:none;border:1px solid transparent;cursor:pointer;background:var(--wine-600);color:var(--gold-100);padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:var(--shadow-wine)">Publicar no painel</button>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+    </div>
+  </main>
+
+  <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;bottom:24px;right:24px;z-index:60">
+      <x-import component-from-global-scope="ImaculadaGordianoDesignSystem_59e5d5.Toast" tone="success" title="{{ toast.title }}" on-close="{{ onToastClose }}" hint-size="320px,72px">{{ toast.msg }}</x-import>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.TYPES = ['Prazo', 'Audiência', 'Pauta de Julgamento', 'Perícia', 'Publicação'];
+    this.typeColors = { 'Prazo': '#7E1F2C', 'Audiência': '#CDA736', 'Pauta de Julgamento': '#2E9E5B', 'Perícia': '#BE5862', 'Publicação': '#8E6E1C' };
+    this.wineRamp = ['#7E1F2C', '#9E3340', '#BE5862', '#651823', '#CDA736', '#B08A26', '#8E6E1C', '#D8868E', '#4E121A', '#9E3340', '#7E1F2C', '#BE5862'];
+    this.state = {
+      page: 'geral',
+      layout: 'A',
+      f: { coord: 'Todos', resp: 'Todos', tipo: 'Todos', periodo: 'Tudo', busca: '' },
+      published: { when: '01/07/2026 08:14', total: 0, ref: '01/07/2026' },
+      upload: 'idle',
+      toast: null,
+    };
+    this.periodoOptions = ['Tudo', 'Vencidos', 'Vencem hoje', 'Críticos (D-1)'];
+  }
+  componentDidMount() { if (!window.__IGSA_REGISTROS) { this._poll = setInterval(() => { if (window.__IGSA_REGISTROS) { clearInterval(this._poll); this.forceUpdate(); } }, 80); } }
+  getData() { if (this._data) return this._data; const raw = window.__IGSA_REGISTROS; if (!raw) return []; this._data = raw.map(o => ({ proc: (o.p || '').replace(/\s*-\s*$/, ''), cliente: o.c, tipo: o.t, desc: o.d, coord: o.k, resp: o.r, conclusao: o.dt, du: o.du, incons: o.x })); return this._data; }
+
+  build() {
+    let seed = 20260630;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 0xffffffff; };
+    const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+    const wpick = (arr, w) => { let x = rnd(), a = 0; for (let i = 0; i < arr.length; i++) { a += w[i]; if (x <= a) return arr[i]; } return arr[arr.length - 1]; };
+
+    const coords = [
+      { d: 'Juliana Mirella Alves Rodrigues', m: ['Arthur Massari', 'Daniel Barros de Oliveira', 'Gustavo Lopes Alencar', 'Keliane de Oliveira', 'Monique de Karolin Silva', 'Natália Paiva de Paula', 'Roberta Rayanne Vasconcelos', 'Thallys Anderson Ferreira', 'Victor Emanoel Fradique'], n: 12 },
+      { d: 'Gabriel Giorgio Cicchelero', m: ['Alysson Narbal de Oliveira', 'Ana Vitória Sales', 'Dalila Drisana Gomes', 'Jamile Barreto', 'Juliana de Oliveira Rocha', 'Rafael Cavalcante Barbosa', 'Rodrigo Ribeiro Antunes'], n: 10 },
+      { d: 'Suzana Maria Campos Maranhão', m: ['Evilany Gabriela Braga', 'Françoise Catherine Souza', 'Giovanna Campos Pereira', 'Matheus Cavalcanti de Araújo', 'Tatiane Carmo Santa Rosa'], n: 8 },
+      { d: 'Yuri Alves Barros dos Santos', m: ['Júlia Menezes Morgado', 'Luiz Guilherme Gonçalves'], n: 5 },
+      { d: 'Nayanderson Luan Mello Pinheiro', m: ['André Viana Garrido', 'Emerson de Almeida Melo Jr.', 'Emerson Travassos Torquato', 'Jean Victor Nunes Saraiva'], n: 7 },
+      { d: 'Ronald Feitosa Aguiar Filho', m: ['Alexia Alencar Capibaribe'], n: 4 },
+      { d: 'Luciane Modernel Mendes', m: ['Antonio Eduardo Góes', 'Erika Paula Santos Lima', 'Sane Borges Borgomoni'], n: 6 },
+      { d: 'Jeniffer Rosa Barbosa de Sales', m: ['Paulo Márcio Soares de Carvalho'], n: 3 },
+      { d: 'Marcelle Leite Rentroia', m: ['Mariana Mota Frota'], n: 3 },
+      { d: 'Helânzia de Araújo Xavier Wichmann', m: [], n: 2 },
+      { d: 'Ticianna Pires de Souza', m: [], n: 2 },
+    ];
+    const TW = [0.42, 0.18, 0.15, 0.08, 0.06, 0.11];
+    const descs = {
+      'Prazo': ['Protocolar contestação', 'Interpor recurso de apelação', 'Manifestar sobre laudo pericial', 'Cumprir despacho — juntar documentos', 'Apresentar contrarrazões de apelação', 'Impugnar cumprimento de sentença', 'Réplica à contestação'],
+      'Audiência': ['Audiência de instrução e julgamento', 'Audiência de conciliação', 'Audiência una'],
+      'Diversos': ['Elaborar cálculo de liquidação', 'Diligência externa — cartório', 'Analisar proposta de acordo', 'Elaborar parecer interno'],
+      'Pauta de Julgamento': ['Acompanhar julgamento — sessão virtual', 'Sustentação oral — 2ª Câmara'],
+      'Perícia': ['Perícia contábil designada', 'Perícia médica designada'],
+      'Publicação': ['Intimação — Diário Oficial', 'Publicação de sentença'],
+    };
+    const clientes = ['Construtora Meridiano Ltda', 'Banco Cassiano S/A', 'Nordeste Energia S/A', 'Município de Fortaleza', 'Transportes Aurora Ltda', 'Instituto Vale Verde', 'Comercial Beira-Mar', 'Têxtil Fortaleza S/A', 'Auto Peças Litoral', 'Fundação São Bento', 'Marília Albuquerque', 'José Ferreira dos Santos', 'Clínica Vida Plena', 'Distribuidora Sertão', 'Hotel Costa Dourada', 'Supermercados Ativa', 'Laticínios Boa Vista', 'Rede Farma Popular'];
+    const inconsSet = ['Conclusão posterior à data da descrição', 'Ano inválido na descrição', 'Tipo Prazo com descrição de Audiência', 'Tipo Audiência com descrição de Prazo'];
+
+    const base = new Date(2026, 5, 30);
+    const addBd = (n) => { let d = new Date(base), c = 0, step = n >= 0 ? 1 : -1; while (c !== n) { d.setDate(d.getDate() + step); const wd = d.getDay(); if (wd !== 0 && wd !== 6) c += step; } return d; };
+    const p2 = (x) => ('0' + x).slice(-2);
+    const fmt = (d) => p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + '/' + d.getFullYear();
+    const iso = (d) => d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+    const duPick = () => { const x = rnd(); if (x < 0.34) return -(1 + Math.floor(rnd() * 8)); if (x < 0.46) return 0; if (x < 0.56) return 1; return 2 + Math.floor(rnd() * 11); };
+    const digs = (n) => { let s = ''; for (let i = 0; i < n; i++) s += Math.floor(rnd() * 10); return s; };
+    const proc = () => digs(7) + '-' + digs(2) + '.2025.8.06.' + digs(4);
+
+    const regs = []; let id = 1000;
+    coords.forEach(c => {
+      for (let i = 0; i < c.n; i++) {
+        const resp = c.m.length ? (rnd() < 0.25 ? c.d : pick(c.m)) : c.d;
+        const tipo = wpick(this.TYPES, TW);
+        const du = duPick();
+        const d = addBd(du);
+        regs.push({ id: 'A' + (id++), proc: proc(), cliente: pick(clientes), tipo, desc: pick(descs[tipo]), coord: c.d, resp, du, conclusao: fmt(d), iso: iso(d), incons: '' });
+      }
+    });
+    const sc = ['Vanessa Nunes Holanda', 'Maria Laura Melo Almeida', 'Irene Flávia Serenário'];
+    for (let i = 0; i < 3; i++) { const du = duPick(); const d = addBd(du); const tipo = wpick(this.TYPES, TW); regs.push({ id: 'A' + (id++), proc: proc(), cliente: pick(clientes), tipo, desc: 'Cadastro sem coordenador vinculado', coord: 'Sem coordenador', resp: sc[i], du, conclusao: fmt(d), iso: iso(d), incons: '' }); }
+    for (let i = 0; i < 9; i++) { const r = regs[Math.floor(rnd() * regs.length)]; if (!r.incons) r.incons = pick(inconsSet); }
+    regs.sort((a, b) => a.iso < b.iso ? -1 : a.iso > b.iso ? 1 : 0);
+    return regs;
+  }
+
+  matchPeriodo(du, p) {
+    if (p === 'Vencidos') return du < 0;
+    if (p === 'Vencem hoje') return du === 0;
+    if (p === 'Críticos (D-1)') return du <= 1;
+    if (p === 'No prazo') return du > 1;
+    return true;
+  }
+
+  apply() {
+    const f = this.state.f;
+    return this.getData().filter(r => {
+      if (f.coord !== 'Todos' && r.coord !== f.coord) return false;
+      if (f.resp !== 'Todos' && r.resp !== f.resp) return false;
+      if (f.tipo !== 'Todos' && r.tipo !== f.tipo) return false;
+      if (!this.matchPeriodo(r.du, f.periodo)) return false;
+      if (f.busca) { const q = f.busca.toLowerCase(); if (!(r.proc.toLowerCase().indexOf(q) >= 0 || r.cliente.toLowerCase().indexOf(q) >= 0)) return false; }
+      return true;
+    });
+  }
+
+  rowColor(r) {
+    if (r.incons) return ['#F7E3CE', '#7a4a1f'];
+    if (r.du < 0) return ['#F4D6DA', '#8E1220'];
+    if (r.du === 0) return ['#FADFE3', '#8E1220'];
+    if (r.du === 1) return ['#FAEFC9', '#6b5410'];
+    return ['#E4F3E9', '#1E6E3E'];
+  }
+  duLabel(du) {
+    if (du < 0) return '\u2212' + (-du) + ' d.\u00fa.';
+    if (du === 0) return 'hoje';
+    if (du === 1) return '+1 d.\u00fa.';
+    return '+' + du + ' d.\u00fa.';
+  }
+  abbr(name) {
+    if (!name) return name;
+    const conn = { 'de': 1, 'da': 1, 'do': 1, 'dos': 1, 'das': 1, 'e': 1 };
+    const suf = { 'filho': 1, 'júnior': 1, 'junior': 1, 'jr': 1, 'jr.': 1, 'neto': 1, 'sobrinho': 1, 'segundo': 1 };
+    const parts = String(name).trim().split(/\s+/);
+    if (parts.length <= 2) return name;
+    const first = parts[0];
+    let last = parts[parts.length - 1];
+    if (suf[last.toLowerCase()]) {
+      let j = parts.length - 2;
+      if (conn[(parts[j] || '').toLowerCase()]) j--;
+      last = parts[j] + ' ' + last;
+    }
+    return first + ' ' + last;
+  }
+
+  setF(k, v) { this.setState(s => ({ f: Object.assign({}, s.f, { [k]: v }) })); }
+  toast(title, msg) { this.setState({ toast: { title, msg } }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), 3600); }
+
+  renderVals() {
+    const st = this.state;
+    const page = st.page;
+    const mk = (id) => ({ bg: page === id ? 'var(--wine-800)' : 'transparent', color: page === id ? '#fff' : 'var(--text-on-wine-muted)', bar: page === id ? 'var(--gold-400)' : 'transparent', fw: page === id ? '600' : '400', onClick: () => this.setState({ page: id }) });
+
+    const all = this.getData();
+    const rows = this.apply();
+    const cnt = (t) => rows.filter(r => r.tipo === t).length;
+    const nf = (n) => String(n);
+    const coordOptions = ['Todos'].concat(Array.from(new Set(all.map(r => r.coord))).sort());
+    const respOptions = ['Todos'].concat(Array.from(new Set(all.map(r => r.resp))).sort());
+    const tipoOptions = ['Todos'].concat(this.TYPES);
+
+    const metricCards = [
+      { k: 'Total', v: nf(rows.length), sub: 'prazos', accent: 'var(--wine-600)' },
+      { k: 'Prazos', v: nf(cnt('Prazo')), sub: 'peticionamento', accent: 'var(--wine-500)' },
+      { k: 'Audiências', v: nf(cnt('Audiência')), sub: 'pauta', accent: 'var(--gold-400)' },
+      { k: 'Pauta Julg.', v: nf(cnt('Pauta de Julgamento')), sub: 'sessões', accent: 'var(--green-500)' },
+      { k: 'Perícia', v: nf(cnt('Perícia')), sub: 'designadas', accent: 'var(--rose-400)' },
+      { k: 'Publicação', v: nf(cnt('Publicação')), sub: 'diário oficial', accent: 'var(--wine-700)' },
+    ];
+
+    const s = (fn) => rows.filter(fn).length;
+    const statusTiles = [
+      { label: 'Vencidos', value: nf(s(r => r.du < 0)), bg: '#F4D6DA', fg: '#8E1220', desc: 'pendentes de baixa' },
+      { label: 'Vencem hoje', value: nf(s(r => r.du === 0)), bg: '#FADFE3', fg: '#8E1220', desc: 'prazo fatal' },
+      { label: 'Amanhã (D-1)', value: nf(s(r => r.du === 1)), bg: '#FAEFC9', fg: '#6b5410', desc: 'agir hoje' },
+      { label: 'Total pendente', value: nf(rows.length), bg: '#F6DBDD', fg: '#651823', desc: 'no recorte atual' },
+    ];
+
+    const byC = {}; rows.forEach(r => byC[r.coord] = (byC[r.coord] || 0) + 1);
+    let cb = Object.keys(byC).map(k => ({ label: k, value: byC[k] })).sort((a, b) => b.value - a.value);
+    const cmax = Math.max(1, ...cb.map(x => x.value));
+    const coordBars = cb.map((x, i) => ({ label: x.label, value: x.value, pct: Math.round(x.value / cmax * 100) + '%', color: this.wineRamp[i % this.wineRamp.length] }));
+
+    const byR = {}; rows.forEach(r => { if (r.resp !== '(Sem responsável)') byR[r.resp] = (byR[r.resp] || 0) + 1; });
+    let rb = Object.keys(byR).map(k => ({ label: k, value: byR[k] })).sort((a, b) => b.value - a.value).slice(0, 10);
+    const rmax = Math.max(1, ...rb.map(x => x.value));
+    const respBars = rb.map(x => ({ label: x.label, value: x.value, pct: Math.round(x.value / rmax * 100) + '%' }));
+
+    let tl = this.TYPES.map(t => ({ label: t, color: this.typeColors[t], value: cnt(t) })).filter(x => x.value > 0);
+    const ttot = tl.reduce((a, b) => a + b.value, 0) || 1;
+    let acc = 0;
+    const segs = tl.map(x => { const start = acc / ttot * 360; acc += x.value; const end = acc / ttot * 360; return x.color + ' ' + start.toFixed(1) + 'deg ' + end.toFixed(1) + 'deg'; });
+    const donutGradient = tl.length ? 'conic-gradient(' + segs.join(', ') + ')' : 'var(--sand-200)';
+    const typeLegend = tl.map(x => ({ label: x.label, color: x.color, value: x.value, pct: Math.round(x.value / ttot * 100) + '%' }));
+
+    const byResp = {};
+    rows.forEach(r => {
+      const k = r.resp;
+      if (!byResp[k]) byResp[k] = { resp: this.abbr(k), prazo: 0, aud: 0, div: 0, pauta: 0, per: 0, pub: 0, total: 0, inc: 0 };
+      const o = byResp[k]; o.total++; if (r.incons) o.inc++;
+      if (r.tipo === 'Prazo') o.prazo++; else if (r.tipo === 'Audiência') o.aud++; else if (r.tipo === 'Pauta de Julgamento') o.pauta++; else if (r.tipo === 'Perícia') o.per++; else if (r.tipo === 'Publicação') o.pub++; else o.div++;
+    });
+    const resumoRows = Object.keys(byResp).map(k => byResp[k]).sort((a, b) => b.total - a.total);
+
+    const toDetail = (r) => { const c = this.rowColor(r); return { proc: r.proc, cliente: r.cliente, tipo: r.tipo, desc: r.desc, coord: this.abbr(r.coord), resp: this.abbr(r.resp), conclusao: r.conclusao, duLabel: this.duLabel(r.du), incons: r.incons || '\u2014', rowBg: c[0], rowFg: c[1] }; };
+    const detailCap = 200;
+    const detailRows = rows.slice(0, detailCap).map(toDetail);
+
+    const incRows = rows.filter(r => r.incons);
+    const auditRows = incRows.map(r => ({ proc: r.proc, cliente: r.cliente, tipo: r.tipo, coord: this.abbr(r.coord), resp: this.abbr(r.resp), conclusao: r.conclusao, incons: r.incons }));
+    const byI = {}; incRows.forEach(r => byI[r.incons] = (byI[r.incons] || 0) + 1);
+    const auditCards = [{ k: 'Total', v: nf(incRows.length), sub: 'inconsistências', accent: 'var(--rose-400)' }].concat(
+      Object.keys(byI).sort((a, b) => byI[b] - byI[a]).slice(0, 4).map(k => ({ k: k, v: nf(byI[k]), sub: 'ocorrências', accent: 'var(--gold-500)' }))
+    );
+
+    const byCE = {}; rows.forEach(r => { if (!byCE[r.coord]) byCE[r.coord] = { coord: r.coord, total: 0, prazos: 0, aud: 0, inc: 0 }; const o = byCE[r.coord]; o.total++; if (r.tipo === 'Prazo') o.prazos++; if (r.tipo === 'Audiência') o.aud++; if (r.incons) o.inc++; });
+    const exportCards = Object.keys(byCE).map(k => byCE[k]).sort((a, b) => b.total - a.total).map(o => ({ coord: o.coord, total: o.total, prazos: o.prazos, aud: o.aud, inc: o.inc, onDownload: () => this.toast('Exportação iniciada', 'Relatório de ' + o.coord + ' sendo gerado (.xlsx).') }));
+
+    const adminStats = [
+      { k: 'Total', v: nf(all.length), sub: 'prazos na carga', accent: 'var(--wine-600)' },
+      { k: 'Prazos', v: nf(all.filter(r => r.tipo === 'Prazo').length), sub: 'tipo prazo', accent: 'var(--wine-500)' },
+      { k: 'Audiências', v: nf(all.filter(r => r.tipo === 'Audiência').length), sub: 'tipo audiência', accent: 'var(--gold-400)' },
+      { k: 'Publicações', v: nf(all.filter(r => r.tipo === 'Publicação').length), sub: 'diário oficial', accent: 'var(--green-500)' },
+      { k: 'Inconsist.', v: nf(all.filter(r => r.incons).length), sub: 'registros', accent: 'var(--gold-600)' },
+    ];
+    const scMap = {}; all.forEach(r => scMap[r.coord] = (scMap[r.coord] || 0) + 1);
+    const semCoordList = Object.keys(scMap).map(k => ({ resp: k, qtd: scMap[k] })).sort((a, b) => b.qtd - a.qtd);
+    const byIA = {}; all.filter(r => r.incons).forEach(r => byIA[r.incons] = (byIA[r.incons] || 0) + 1);
+    const inconsResumo = Object.keys(byIA).sort((a, b) => byIA[b] - byIA[a]).map(k => ({ k: k, v: byIA[k] }));
+
+    const byE = {};
+    rows.forEach(r => { const k = r.resp; if (!byE[k]) byE[k] = { exec: k, coord: r.coord, total: 0, d1: 0, fatal: 0, venc: 0, dentro: 0 }; const o = byE[k]; o.total++; if (r.du === 1) o.d1++; else if (r.du === 0) o.fatal++; else if (r.du < 0) o.venc++; else o.dentro++; });
+    const mkExec = (o) => ({ exec: this.abbr(o.exec), coord: this.abbr(o.coord), total: String(o.total), d1: o.d1 > 0 ? String(o.d1) : '', d1Bg: o.d1 > 0 ? '#FAEFC9' : 'transparent', fatal: o.fatal > 0 ? String(o.fatal) : '', fatalBg: o.fatal > 0 ? '#FADFE3' : 'transparent', venc: o.venc > 0 ? String(o.venc) : '', vencBg: o.venc > 0 ? '#B83A4C' : 'transparent', vencFg: o.venc > 0 ? '#fff' : 'var(--ink-900)', dentro: o.dentro > 0 ? String(o.dentro) : '', dentroBg: o.dentro > 0 ? '#E4F3E9' : 'transparent', atraso: (o.fatal + o.venc) > 0 ? String(o.fatal + o.venc) : '', atrasoBg: (o.fatal + o.venc) > 0 ? '#F6DBDD' : 'transparent' });
+    const execArr = Object.keys(byE).map(k => byE[k]).sort((a, b) => a.exec.localeCompare(b.exec));
+    const execRows = execArr.map(mkExec);
+    const TG = { exec: 'TOTAL GERAL', coord: '', total: 0, d1: 0, fatal: 0, venc: 0, dentro: 0 };
+    execArr.forEach(o => { TG.total += o.total; TG.d1 += o.d1; TG.fatal += o.fatal; TG.venc += o.venc; TG.dentro += o.dentro; });
+    const execTotal = mkExec(TG);
+
+    const pageMeta = {
+      geral: { kicker: 'Portal de Gestão de Prazos', title: 'Visão Geral', sub: 'Referência 01/07/2026' },
+      coord: { kicker: 'Controladoria · Equipes', title: 'Por Coordenação', sub: 'Distribuição e detalhamento das pendências por responsável' },
+      audit: { kicker: 'Controladoria · Qualidade', title: 'Auditoria de Inconsistências', sub: 'Divergências de cadastro a revisar' },
+      export: { kicker: 'Controladoria · Relatórios', title: 'Central de Exportação', sub: 'Gere planilhas por coordenação ou consolidadas' },
+      admin: { kicker: 'Controladoria · Restrito', title: 'Área Administrativa', sub: 'Carga e publicação de dados' },
+    };
+
+    const seg = st.layout === 'A';
+
+    return {
+      nav: { geral: mk('geral'), coord: mk('coord'), audit: mk('audit'), export: mk('export'), admin: mk('admin') },
+      published: Object.assign({}, st.published, { total: all.length }),
+      page: pageMeta[page],
+      f: st.f,
+      coordOptions, respOptions, tipoOptions, periodoOptions: this.periodoOptions,
+      onCoord: (e) => this.setF('coord', e.target.value),
+      onResp: (e) => this.setF('resp', e.target.value),
+      onTipo: (e) => this.setF('tipo', e.target.value),
+      onPeriodo: (e) => this.setF('periodo', e.target.value),
+      onBusca: (e) => this.setF('busca', e.target.value),
+      onLayoutA: () => this.setState({ layout: 'A' }),
+      onLayoutB: () => this.setState({ layout: 'B' }),
+      segABg: seg ? 'var(--wine-600)' : 'transparent', segAColor: seg ? '#fff' : 'var(--wine-600)', segASh: seg ? 'var(--shadow-xs)' : 'none',
+      segBBg: !seg ? 'var(--wine-600)' : 'transparent', segBColor: !seg ? '#fff' : 'var(--wine-600)', segBSh: !seg ? 'var(--shadow-xs)' : 'none',
+      isGeral: page === 'geral', notGeral: page !== 'geral', isCoord: page === 'coord', isAudit: page === 'audit', isExport: page === 'export', isAdmin: page === 'admin',
+      isGeralA: page === 'geral' && seg, isGeralB: page === 'geral' && !seg,
+      metricCards, statusTiles, coordBars, respBars, donutGradient, donutTotal: nf(rows.length), typeLegend,
+      resumoRows, detailRows, detailCount: rows.length, detailShown: detailRows.length, detailTrunc: rows.length > detailCap, hasDetail: detailRows.length > 0, noDetail: detailRows.length === 0,
+      auditRows, auditCards, hasAudit: auditRows.length > 0, noAudit: auditRows.length === 0,
+      exportCards, execRows, execTotal, hasExec: execRows.length > 0,
+      onExportFiltrado: () => this.toast('Exportação iniciada', rows.length + ' registros do recorte atual sendo exportados (.xlsx).'),
+      onExportXlsx: () => this.toast('Exportação iniciada', 'Planilha consolidada sendo gerada (.xlsx).'),
+      onExportCsv: () => this.toast('Exportação iniciada', 'Arquivo CSV sendo gerado.'),
+      onControladoria: () => this.toast('Controladoria', 'Relatório consolidado da Controladoria sendo gerado.'),
+      uploadIdle: st.upload === 'idle', uploadProcessing: st.upload === 'processing', uploadDone: st.upload === 'done',
+      validLine: all.length + ' prazos processados · ' + all.filter(r => r.incons).length + ' inconsistências detectadas',
+      adminStats, semCoordList, inconsResumo,
+      cargaId: '01/07/2026 — Carga diária (Geral Pendentes)',
+      onUpload: () => { this.setState({ upload: 'processing' }); clearTimeout(this._u); this._u = setTimeout(() => this.setState({ upload: 'done' }), 1100); },
+      onPublish: () => { const now = new Date(); const p2 = (x) => ('0' + x).slice(-2); const when = '01/07/2026 ' + p2(now.getHours()) + ':' + p2(now.getMinutes()); this.setState(s => ({ published: Object.assign({}, s.published, { when }) })); this.toast('Dados publicados', this.getData().length + ' prazos publicados no painel com sucesso.'); },
+      hasToast: !!st.toast, toast: st.toast || { title: '', msg: '' }, onToastClose: () => this.setState({ toast: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

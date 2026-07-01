@@ -1,0 +1,49 @@
+/* ============================================================
+   Imaculada Gordiano — Typography tokens
+   Cinzel (Trajan-like caps) for brand/section marks,
+   Cormorant Garamond for elegant editorial headings,
+   Libre Franklin for UI & body, IBM Plex Mono for
+   process numbers / codes.
+   ============================================================ */
+:root {
+  /* families */
+  --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;       /* brand caps, crests, section marks */
+  --font-serif:   'Cormorant Garamond', 'Hoefler Text', Georgia, serif; /* editorial headings, quotes */
+  --font-sans:    'Libre Franklin', system-ui, -apple-system, 'Segoe UI', sans-serif; /* UI + body */
+  --font-mono:    'IBM Plex Mono', 'SFMono-Regular', ui-monospace, monospace; /* process nº, codes */
+
+  /* weights */
+  --fw-light:    300; /* @kind font */
+  --fw-regular:  400; /* @kind font */
+  --fw-medium:   500; /* @kind font */
+  --fw-semibold: 600; /* @kind font */
+  --fw-bold:     700; /* @kind font */
+
+  /* type scale (rem, 16px base) */
+  --fs-2xs: 0.6875rem;  /* 11 — micro labels */
+  --fs-xs:  0.75rem;    /* 12 — captions, category tags */
+  --fs-sm:  0.875rem;   /* 14 — secondary UI text */
+  --fs-md:  1rem;       /* 16 — body */
+  --fs-lg:  1.125rem;   /* 18 — lead body */
+  --fs-xl:  1.375rem;   /* 22 — card titles */
+  --fs-2xl: 1.75rem;    /* 28 — section headings */
+  --fs-3xl: 2.25rem;    /* 36 — page titles */
+  --fs-4xl: 3rem;       /* 48 — display */
+  --fs-5xl: 4rem;       /* 64 — hero display */
+
+  /* line heights */
+  --lh-tight:   1.1;  /* @kind font */
+  --lh-snug:    1.25; /* @kind font */
+  --lh-normal:  1.5;  /* @kind font */
+  --lh-relaxed: 1.65; /* @kind font */
+
+  /* letter spacing */
+  --ls-tight:  -0.01em; /* @kind font */
+  --ls-normal: 0;       /* @kind font */
+  --ls-wide:   0.04em;  /* @kind font */
+  --ls-wider:  0.12em;  /* @kind font */
+  --ls-caps:   0.18em;  /* @kind font */
+
+  /* ---- semantic text roles ---- */
+  --type-brandmark: var(--fw-semibold) var(--fs-3xl)/var(--lh-tight) var(--font-display); /* @kind font */
+}

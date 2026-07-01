@@ -1,0 +1,95 @@
+/* ============================================================
+   Imaculada Gordiano — Color tokens
+   Wine/burgundy + gold heraldic palette, warm light neutrals,
+   discreet green status accents. Formal, traditional, legal.
+   ============================================================ */
+:root {
+  /* ---- Wine / Burgundy (primary brand) ---- */
+  --wine-50:  #FBF0F1;
+  --wine-100: #F6DBDD;
+  --wine-200: #E9B2B7;
+  --wine-300: #D8868E;
+  --wine-400: #BE5862;
+  --wine-500: #9E3340;   /* lighter banner red (right side of gradient) */
+  --wine-600: #7E1F2C;   /* PRIMARY wine */
+  --wine-700: #651823;
+  --wine-800: #4E121A;
+  --wine-900: #380B11;
+
+  /* ---- Rose (light red used for card icons / hairlines) ---- */
+  --rose-300: #E3A7AC;
+  --rose-400: #CE7B82;
+  --rose-soft: #F7E7E8;
+
+  /* ---- Gold / Amarelo-dourado (accent) ---- */
+  --gold-50:  #FBF6E7;
+  --gold-100: #F5E9C2;
+  --gold-200: #EBD58A;
+  --gold-300: #DEC158;
+  --gold-400: #CDA736;   /* PRIMARY gold */
+  --gold-500: #B08A26;
+  --gold-600: #8E6E1C;
+
+  /* ---- Green (status / activity dots) ---- */
+  --green-100: #E2F3E8;
+  --green-400: #43B26C;
+  --green-500: #2E9E5B;  /* PRIMARY status green */
+  --green-700: #1E6E3E;
+
+  /* ---- Warm neutrals (beige / off-white / ink) ---- */
+  --sand-50:  #FBF8F2;   /* raised surfaces */
+  --sand-100: #F7F2E9;   /* page background (off-white beige) */
+  --sand-200: #EFE7D8;
+  --sand-300: #E5DAC7;   /* warm borders */
+  --sand-400: #D3C5AC;
+  --ink-900:  #2A2420;   /* warm near-black, strongest text */
+  --ink-700:  #4A423B;   /* body text */
+  --ink-500:  #756A5D;   /* secondary text */
+  --ink-400:  #998D7D;   /* muted / placeholder */
+  --white:    #FFFFFF;
+
+  /* ============================================================
+     SEMANTIC ALIASES — reference these in components
+     ============================================================ */
+  --color-primary:        var(--wine-600);
+  --color-primary-hover:  var(--wine-700);
+  --color-primary-press:  var(--wine-800);
+  --color-primary-soft:   var(--wine-50);
+  --color-on-primary:     var(--gold-100);
+
+  --color-accent:         var(--gold-400);
+  --color-accent-strong:  var(--gold-500);
+  --color-accent-soft:    var(--gold-50);
+  --color-on-accent:      var(--wine-800);
+
+  --color-success:        var(--green-500);
+  --color-success-soft:   var(--green-100);
+
+  /* surfaces */
+  --surface-page:    var(--sand-100);
+  --surface-raised:  var(--sand-50);
+  --surface-card:    var(--white);
+  --surface-sunken:  var(--sand-200);
+  --surface-inverse: var(--wine-700);
+
+  /* text */
+  --text-strong:   var(--ink-900);
+  --text-body:     var(--ink-700);
+  --text-muted:    var(--ink-500);
+  --text-faint:    var(--ink-400);
+  --text-on-wine:  var(--gold-100);
+  --text-on-wine-muted: #E8CFBF;
+  --text-category: var(--gold-600);   /* "AUTOMAÇÃO · DIÁRIO" labels */
+
+  /* borders & lines */
+  --border-soft:   var(--sand-300);
+  --border-strong: var(--sand-400);
+  --border-wine:   var(--rose-300);
+
+  /* brand gradient (banner / hero) */
+  --gradient-wine: linear-gradient(100deg, var(--wine-700) 0%, var(--wine-600) 45%, var(--wine-500) 100%);
+  --gradient-gold: linear-gradient(180deg, var(--gold-300), var(--gold-500));
+
+  /* focus ring */
+  --ring: 0 0 0 3px color-mix(in srgb, var(--gold-400) 55%, transparent);
+}

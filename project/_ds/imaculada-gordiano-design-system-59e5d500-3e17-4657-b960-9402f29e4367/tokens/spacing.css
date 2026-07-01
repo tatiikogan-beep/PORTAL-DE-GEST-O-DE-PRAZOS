@@ -1,0 +1,50 @@
+/* ============================================================
+   Imaculada Gordiano — Spacing, radius, shadow, motion tokens
+   ============================================================ */
+:root {
+  /* spacing scale (4px base grid) */
+  --space-0:  0;
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* radii — restrained, formal (small corners) */
+  --radius-xs:   3px;
+  --radius-sm:   5px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-pill: 999px;
+
+  /* shadows — soft, warm-tinted, low spread */
+  --shadow-xs:  0 1px 2px rgba(56, 11, 17, 0.06);
+  --shadow-sm:  0 1px 3px rgba(56, 11, 17, 0.08), 0 1px 2px rgba(56, 11, 17, 0.04);
+  --shadow-md:  0 4px 12px rgba(56, 11, 17, 0.08), 0 2px 4px rgba(56, 11, 17, 0.05);
+  --shadow-lg:  0 12px 28px rgba(56, 11, 17, 0.12), 0 4px 8px rgba(56, 11, 17, 0.06);
+  --shadow-wine: 0 8px 24px rgba(126, 31, 44, 0.22);
+
+  /* card recipe */
+  --card-radius:  var(--radius-lg);
+  --card-border:  1px solid var(--border-soft);
+  --card-shadow:  var(--shadow-sm);
+  --card-pad:     var(--space-6);
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1); /* @kind other */
+  --ease-out:      cubic-bezier(0.16, 1, 0.3, 1); /* @kind other */
+  --dur-fast:   120ms; /* @kind other */
+  --dur-base:   200ms; /* @kind other */
+  --dur-slow:   320ms; /* @kind other */
+
+  /* layout */
+  --container-max: 1200px;
+  --sidebar-w:     264px;
+}
