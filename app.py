@@ -737,7 +737,7 @@ def render_prazos_por_responsavel(active_df, tipo_filter):
         o = agg.setdefault(k, {"resp": k, "coord": r["coord_display"], "total": 0,
                                "d1": 0, "fatal": 0, "venc": 0, "dentro": 0})
         o["total"] += 1
-        du = r["du"]
+        du = r["du_efetivo"]
         if du == 1:
             o["d1"] += 1
         elif du == 0:
@@ -789,7 +789,25 @@ def render_prazos_por_responsavel(active_df, tipo_filter):
 # ════════════════════════════════════════════════════════════════════════════
 # FILTROS COMPARTILHADOS
 # ════════════════════════════════════════════════════════════════════════════
-def base_df(registros):
+def calc_du_efetivo(row, hoje):
+    """
+    DU pela "data fatal subjacente" (seção 14 do manual): linhas laranja (com
+    inconsistência) podem ter a Conclusão Prevista desatualizada em relação à
+    data FATAL/AUD real da descrição (é justamente essa divergência que gera a
+    Regra 1 de inconsistência). Para classificar em D-1/Fatal/Vencido/Dentro do
+    Prazo, usa-se a data real extraída da descrição quando ela existir; senão,
+    cai para o DU normal (baseado na Conclusão Prevista).
+    """
+    if row.get("incons") and hoje is not None:
+        ref = extract_fatal(row.get("desc")) or extract_aud(row.get("desc"))
+        if ref:
+            d = busdays(hoje, ref)
+            if d is not None:
+                return d
+    return row.get("du")
+
+
+def base_df(registros, hoje=None):
     """DataFrame público: sem coordenações ocultas, sem responsável vazio."""
     if not registros:
         return pd.DataFrame()
@@ -797,12 +815,13 @@ def base_df(registros):
     df["conclusao_dt"] = pd.to_datetime(df["conclusao_iso"])
     df = df[df["resp"].notna() & (df["resp"] != "") & (df["resp"] != "nan")]
     df = df[~df["coord"].isin(HIDDEN_COORDS)]                       # seção 11
+    df["du_efetivo"] = df.apply(lambda r: calc_du_efetivo(r, hoje), axis=1)
     return df
 
 
-def public_df(registros):
+def public_df(registros, hoje=None):
     """Recorte público: exclui EXCLUDED_SET (§10). Coordenações ocultas já saem em base_df (§11)."""
-    df = base_df(registros)
+    df = base_df(registros, hoje)
     if df.empty:
         return df
     return df[~df["resp"].isin(EXCLUDED_SET)]                       # seção 10
@@ -830,7 +849,7 @@ def metric_items(df):
 
 def page_geral(registros, ref):
     render_header("Portal de Gestão de Prazos", "Visão Geral", ref=ref)
-    df0 = public_df(registros)
+    df0 = public_df(registros, hoje=parse_date(ref))
     if df0.empty:
         st.info("Nenhum dado disponível. Publique uma planilha na Área Administrativa.")
         return
@@ -869,9 +888,9 @@ def page_geral(registros, ref):
         chart_bar_h(top, "Qtd", "resp", WINE)
     else:  # Prioridades
         s = lambda cond: fmt_num(len(df[cond]))
-        tiles = [("Vencidos", s(df.du < 0), "#F4D6DA", "#8E1220", "pendentes de baixa"),
-                 ("Vencem hoje", s(df.du == 0), "#FADFE3", "#8E1220", "prazo fatal"),
-                 ("Amanhã (D-1)", s(df.du == 1), "#FAEFC9", "#6b5410", "agir hoje"),
+        tiles = [("Vencidos", s(df.du_efetivo < 0), "#F4D6DA", "#8E1220", "pendentes de baixa"),
+                 ("Vencem hoje", s(df.du_efetivo == 0), "#FADFE3", "#8E1220", "prazo fatal"),
+                 ("Amanhã (D-1)", s(df.du_efetivo == 1), "#FAEFC9", "#6b5410", "agir hoje"),
                  ("Total pendente", fmt_num(len(df)), "#F6DBDD", "#651823", "no recorte atual")]
         cols = st.columns(4)
         for i, (lb, v, bg, fg, dsc) in enumerate(tiles):
@@ -894,7 +913,7 @@ def page_geral(registros, ref):
 def page_coordenacao(registros, ref):
     render_header("Controladoria · Equipes", "Por Coordenação",
                   sub="Distribuição e detalhamento das pendências por responsável")
-    df0 = public_df(registros)
+    df0 = public_df(registros, hoje=parse_date(ref))
     if df0.empty:
         st.info("Nenhum dado disponível.")
         return
