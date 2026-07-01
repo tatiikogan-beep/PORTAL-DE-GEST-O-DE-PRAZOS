@@ -688,7 +688,7 @@ def chart_bar_h(df_data, val_col, lbl_col, color="#7E1F2D"):
     d["_f"] = d[val_col].apply(fmt_num)
     base = alt.Chart(d).encode(
         y=alt.Y(f"{lbl_col}:N", sort="-x", title=None, axis=alt.Axis(labelLimit=200, labelFontSize=11)),
-        x=alt.X(f"{val_col}:Q", title=None, axis=alt.Axis(labelFontSize=11),
+        x=alt.X(f"{val_col}:Q", title=None, axis=alt.Axis(labels=False, ticks=False),
                 scale=alt.Scale(domain=[0, float(d[val_col].max()) * 1.18])))
     bars = base.mark_bar(color=color, cornerRadiusTopRight=4, cornerRadiusBottomRight=4)
     labels = base.mark_text(align="left", dx=5, fontSize=12, fontWeight="bold", color="#2A2420").encode(text="_f:N")
