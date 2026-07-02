@@ -578,7 +578,7 @@ def inject_css():
         border-radius:8px;padding:.55rem .8rem;font-size:13.5px;font-weight:500;margin-bottom:2px;transition:all .15s}
     section[data-testid="stSidebar"] .stButton>button:hover{background:rgba(255,255,255,.09);border-color:rgba(205,167,54,.4)}
     section[data-testid="stSidebar"] .stButton>button:focus{box-shadow:none;color:#fff}
-    section[data-testid="stSidebar"] .nav-active>button{background:var(--wine-d)!important;color:#fff!important;
+    section[data-testid="stSidebar"] .stButton>button[kind="primary"]{background:var(--wine-d)!important;color:#fff!important;
         border-left:3px solid var(--gold)!important;font-weight:600!important}
     /* Header */
     .ig-kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-d);font-weight:600;margin-bottom:6px}
@@ -1196,11 +1196,10 @@ def render_sidebar():
                     unsafe_allow_html=True)
         for key, label in NAV_ITEMS:
             active = st.session_state.page == key
-            st.markdown(f'<div class="{"nav-active" if active else ""}">', unsafe_allow_html=True)
-            if st.button(label, key=f"nav_{key}", use_container_width=True):
+            if st.button(label, key=f"nav_{key}", use_container_width=True,
+                        type="primary" if active else "secondary"):
                 st.session_state.page = key
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
 
         pub = load_published()
         st.markdown('<div style="flex:1;min-height:24px"></div>', unsafe_allow_html=True)
