@@ -76,8 +76,9 @@ COORD_DISPLAY = {"TATIANA KOGAN": "CONTROLADORIA JURÍDICA"}
 
 # 18-D · Responsáveis/coordenadores excluídos de TODAS as visualizações públicas
 # (Visão Geral, Por Coordenação, Auditoria e Exportação) — seção 10. Todas as grafias.
+# Os registros continuam armazenados na base; só ficam fora de telas, gráficos e relatórios.
 EXCLUDED_SET = {
-    "TATIANA KOGAN", "APARECIDO", "MARIA LAURA MELO ALMEIDA",
+    "TATIANA KOGAN", "APARECIDO", "MARIA LAURA MELO ALMEIDA", "YURI GONDIM DE AMORIM",
 }
 # 18-E · Coordenações inteiramente ocultas do painel público (seção 11).
 HIDDEN_COORDS = {"TATIANA KOGAN"}
@@ -423,6 +424,13 @@ def save_published(registros, versao, today_str):
     return data
 
 
+def clear_published():
+    """Apaga somente os registros importados/publicados (DATA_FILE). Não mexe em
+    COORD_MAP, EXCLUDED_SET nem em nenhuma outra configuração do sistema."""
+    if os.path.exists(DATA_FILE):
+        os.remove(DATA_FILE)
+
+
 def push_to_github(token, repo_name, file_path, content, commit_msg):
     try:
         from github import Github
@@ -707,17 +715,13 @@ def chart_donut(labels, values):
 
 
 # ---- Tabela "Prazos por responsável" (seção 14) ----
-def render_prazos_por_responsavel(active_df, tipo_filter):
-    """Tabela resumida por responsável — SOMENTE tipo Prazo (manual §14)."""
-    st.markdown('<div class="ig-sec">Prazos por responsável</div>', unsafe_allow_html=True)
-    st.caption("Responsável e seu Coordenador, com a situação dos prazos por status.")
+def _agg_prazos_por_responsavel(active_df, tipo_filter):
+    """Agrega prazos (SOMENTE tipo Prazo) por responsável, com totais por status (manual §14)."""
     if tipo_filter not in ("Todos", "Prazo"):
-        st.info("Nenhum prazo encontrado.")
-        return
+        return None
     prazos = active_df[active_df["tipo"] == "Prazo"]
     if prazos.empty:
-        st.info("Nenhum prazo encontrado.")
-        return
+        return None
     agg = {}
     for _, r in prazos.iterrows():
         k = r["resp"]
@@ -733,9 +737,11 @@ def render_prazos_por_responsavel(active_df, tipo_filter):
             o["venc"] += 1
         else:
             o["dentro"] += 1
-    linhas = sorted(agg.values(), key=lambda x: abbrev_name(x["resp"]).lower())  # ordem alfabética
+    return list(agg.values())
 
-    def cell(v, bg, fg="#2A2420"):
+
+def _tabela_prazos_por_responsavel_html(linhas, height=480):
+    def cell(v, bg):
         return f'<td style="text-align:center;font-weight:600;background:{bg}">{v or ""}</td>' if v else \
                '<td style="text-align:center"></td>'
 
@@ -769,8 +775,69 @@ def render_prazos_por_responsavel(active_df, tipo_filter):
         f'<td style="text-align:center">{tg["venc"] or ""}</td><td style="text-align:center">{tg["dentro"] or ""}</td>'
         f'<td style="text-align:center">{atraso_tg or ""}</td></tr>')
     st.markdown(
-        f'<div class="ig-tw" style="--h:480px"><table><thead>{head}</thead>'
+        f'<div class="ig-tw" style="--h:{height}px"><table><thead>{head}</thead>'
         f'<tbody>{"".join(rows_html)}</tbody></table></div>', unsafe_allow_html=True)
+
+
+def _tabela_prazos_por_coordenador_html(linhas, height=480):
+    head = ("<tr><th>Coordenador</th>"
+            "<th style='text-align:center;background:#641828'>Total</th></tr>")
+    rows_html = []
+    tg = 0
+    for o in linhas:
+        tg += o["total"]
+        rows_html.append(
+            "<tr>"
+            f'<td style="font-weight:500">{abbrev_name(o["coord"])}</td>'
+            f'<td style="text-align:center;font-weight:700;color:#651823">{o["total"]}</td>'
+            "</tr>")
+    rows_html.append(
+        '<tr style="border-top:2px solid #7E1F2D;background:#F7F2E9;font-weight:700">'
+        '<td>TOTAL GERAL</td>'
+        f'<td style="text-align:center;color:#651823">{tg}</td></tr>')
+    st.markdown(
+        f'<div class="ig-tw" style="--h:{height}px"><table><thead>{head}</thead>'
+        f'<tbody>{"".join(rows_html)}</tbody></table></div>', unsafe_allow_html=True)
+
+
+def render_prazos_por_responsavel(active_df, tipo_filter):
+    """Tabela resumida por responsável — SOMENTE tipo Prazo (manual §14)."""
+    st.markdown('<div class="ig-sec">Prazos por responsável</div>', unsafe_allow_html=True)
+    st.caption("Responsável e seu Coordenador, com a situação dos prazos por status.")
+    agg = _agg_prazos_por_responsavel(active_df, tipo_filter)
+    if agg is None:
+        st.info("Nenhum prazo encontrado.")
+        return
+    linhas = sorted(agg, key=lambda x: abbrev_name(x["resp"]).lower())  # ordem alfabética por responsável
+    _tabela_prazos_por_responsavel_html(linhas)
+
+
+def render_tabelas_prazos_coordenacao(active_df, tipo_filter):
+    """Duas tabelas lado a lado, mesmo tamanho: Prazos por Coordenador (só totais) e
+    Prazos por Responsável (ordenada por coordenador, responsáveis preservados dentro de cada um)."""
+    HEIGHT = 480
+    agg = _agg_prazos_por_responsavel(active_df, tipo_filter)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown('<div class="ig-sec">Prazos por coordenador</div>', unsafe_allow_html=True)
+        st.caption("Total de prazos de cada coordenador.")
+        if agg is None:
+            st.info("Nenhum prazo encontrado.")
+        else:
+            by_coord = {}
+            for o in agg:
+                c = by_coord.setdefault(o["coord"], {"coord": o["coord"], "total": 0})
+                c["total"] += o["total"]
+            linhas_c = sorted(by_coord.values(), key=lambda x: abbrev_name(x["coord"]).lower())
+            _tabela_prazos_por_coordenador_html(linhas_c, height=HEIGHT)
+    with col2:
+        st.markdown('<div class="ig-sec">Prazos por responsável</div>', unsafe_allow_html=True)
+        st.caption("Responsável e seu Coordenador, com a situação dos prazos por status.")
+        if agg is None:
+            st.info("Nenhum prazo encontrado.")
+        else:
+            linhas_r = sorted(agg, key=lambda x: (abbrev_name(x["coord"]).lower(), abbrev_name(x["resp"]).lower()))
+            _tabela_prazos_por_responsavel_html(linhas_r, height=HEIGHT)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -959,7 +1026,7 @@ def page_coordenacao(registros, ref):
     st.download_button("📥 Exportar seleção (Excel)", buf, "IGSA_Filtrado.xlsx",
                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-    render_prazos_por_responsavel(df, tipo_f)   # seção 14 — ao final da página
+    render_tabelas_prazos_coordenacao(df, tipo_f)   # seção 14 — ao final da página
 
 
 def page_auditoria(registros, ref):
@@ -1069,11 +1136,35 @@ def page_admin():
                 'margin-bottom:16px;font-size:12.5px;color:#8E6E1C"><b>Área restrita.</b> '
                 'Uso exclusivo da equipe de Controladoria Jurídica.</div>', unsafe_allow_html=True)
 
+    if st.session_state.pop("base_limpa_msg", False):
+        st.success("✅ Base de dados limpa. Você já pode importar uma nova planilha.")
+
     pub = load_published()
     if pub.get("publicado_em"):
         st.markdown(f'<div style="background:linear-gradient(90deg,#1a4731,#2E9E5B);color:#fff;padding:10px 16px;'
                     f'border-radius:8px;margin-bottom:14px;font-size:12px">✓ Publicado em {pub["publicado_em"]} · '
                     f'{fmt_num(pub["total"])} registros · Ref: {pub.get("referencia","—")}</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="ig-sec">Manutenção da base</div>', unsafe_allow_html=True)
+    if not pub.get("publicado_em"):
+        st.caption("Nenhum dado publicado no momento.")
+    elif st.session_state.get("confirmar_limpeza_base"):
+        st.warning(
+            f"⚠️ Isso vai excluir **todos os {fmt_num(pub['total'])} registros importados** atualmente publicados. "
+            "Coordenadores, usuários e demais configurações do sistema não são afetados. Essa ação não pode ser desfeita.")
+        cc1, cc2 = st.columns([1, 1])
+        if cc1.button("Confirmar exclusão", type="primary"):
+            clear_published()
+            st.session_state.confirmar_limpeza_base = False
+            st.session_state.base_limpa_msg = True
+            st.rerun()
+        if cc2.button("Cancelar"):
+            st.session_state.confirmar_limpeza_base = False
+            st.rerun()
+    else:
+        if st.button("🗑️ Limpar Base"):
+            st.session_state.confirmar_limpeza_base = True
+            st.rerun()
 
     st.markdown('<div class="ig-sec">1 · Carregar planilha</div>', unsafe_allow_html=True)
     today = st.date_input("Data de referência", value=date(2026, 7, 1))
