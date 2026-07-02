@@ -47,7 +47,8 @@ COORD_MAP = {
     "JULIANA MIRELLA ALVES RODRIGUES": [
         "ARTHUR MASSARI", "DANIEL BARROS DE OLIVEIRA", "GUSTAVO LOPES ALENCAR FILHO",
         "KELIANE DE OLIVEIRA", "MONIQUE DE KAROLIN SILVA DA COSTA", "NATALIA PAIVA DE PAULA",
-        "ROBERTA RAYANNE VASCONCELOS BOTO", "THALLYS ANDERSON FERREIRA DE LIMA",
+        "ROBERTA RAYANNE VASCONCELOS BOTO", "ROBERTA FURTADO DE ARRAES ALENCAR E CASTRO",
+        "THALLYS ANDERSON FERREIRA DE LIMA",
         "VICTOR EMANOEL FRADIQUE ACCIOLY FONTENELE", "JULIANA MIRELLA ALVES RODRIGUES"],
     "KARYNA SARAIVA LEÃO GAYA": ["KARYNA SARAIVA LEÃO GAYA"],
     "MARCELLE LEITE RENTROIA": ["MARIANA MOTA FROTA"],
@@ -105,14 +106,25 @@ GITHUB_REPO = "tatiikogan-beep/Gestao-Prazos-IGSA"
 
 DATA_FILE = "dados_publicados.json"
 
+# Vínculos responsável→coordenador aprendidos na Área Administrativa (seção 8):
+# quando alguém sem coordenador mapeado recebe um coordenador manualmente, o
+# vínculo é gravado aqui e passa a valer para todas as cargas seguintes.
+LEARNED_COORD_FILE = "coord_aprendido.json"
+
 # Rótulo especial para responsáveis sem vínculo de coordenador (seções 6/8).
 SEM_COORD = "SEM COORDENADOR"
 
-# Índice reverso executor → coordenador (derivado do COORD_MAP).
+# Índice reverso executor → coordenador (derivado do COORD_MAP + aprendizado automático).
 RESP_TO_COORD = {}
 for _coord, _members in COORD_MAP.items():
     for _m in _members:
         RESP_TO_COORD[_m] = _coord
+if os.path.exists(LEARNED_COORD_FILE):
+    try:
+        with open(LEARNED_COORD_FILE, encoding="utf-8") as _f:
+            RESP_TO_COORD.update(json.load(_f))
+    except Exception:
+        pass
 
 # ---- Paleta (design system vinho/dourado) ----
 CLR_HEADER = "7E1F2D"; CLR_HEADER_TXT = "FFFFFF"
@@ -429,6 +441,24 @@ def clear_published():
     COORD_MAP, EXCLUDED_SET nem em nenhuma outra configuração do sistema."""
     if os.path.exists(DATA_FILE):
         os.remove(DATA_FILE)
+
+
+def learn_coord_overrides(coord_overrides):
+    """Grava permanentemente os vínculos responsável→coordenador escolhidos
+    manualmente na carga (seção 8), para que as próximas importações já
+    reconheçam esses responsáveis automaticamente."""
+    if not coord_overrides:
+        return
+    aprendidos = {}
+    if os.path.exists(LEARNED_COORD_FILE):
+        try:
+            with open(LEARNED_COORD_FILE, encoding="utf-8") as f:
+                aprendidos = json.load(f)
+        except Exception:
+            aprendidos = {}
+    aprendidos.update(coord_overrides)
+    with open(LEARNED_COORD_FILE, "w", encoding="utf-8") as f:
+        json.dump(aprendidos, f, ensure_ascii=False, indent=2)
 
 
 def push_to_github(token, repo_name, file_path, content, commit_msg):
@@ -780,21 +810,38 @@ def _tabela_prazos_por_responsavel_html(linhas, height=480):
 
 
 def _tabela_prazos_por_coordenador_html(linhas, height=480):
+    def cell(v, bg):
+        return f'<td style="text-align:center;font-weight:600;background:{bg}">{v or ""}</td>' if v else \
+               '<td style="text-align:center"></td>'
+
     head = ("<tr><th>Coordenador</th>"
-            "<th style='text-align:center;background:#641828'>Total</th></tr>")
+            "<th style='text-align:center;background:#641828'>Total</th>"
+            "<th style='text-align:center'>D-1</th><th style='text-align:center'>Fatal</th>"
+            "<th style='text-align:center'>Vencido</th><th style='text-align:center'>No prazo</th>"
+            "<th style='text-align:center;background:#DEC158;color:#4E121A'>Em atraso</th></tr>")
     rows_html = []
-    tg = 0
+    tg = {"total": 0, "d1": 0, "fatal": 0, "venc": 0, "dentro": 0}
     for o in linhas:
-        tg += o["total"]
+        for kk in tg:
+            tg[kk] += o[kk]
+        atraso = o["fatal"] + o["venc"]
         rows_html.append(
             "<tr>"
             f'<td style="font-weight:500">{abbrev_name(o["coord"])}</td>'
             f'<td style="text-align:center;font-weight:700;color:#651823">{o["total"]}</td>'
-            "</tr>")
+            + cell(o["d1"], "#FFEB9C") + cell(o["fatal"], "#FFC7CE")
+            + (f'<td style="text-align:center;font-weight:700;background:#E57373;color:#fff">{o["venc"]}</td>' if o["venc"] else '<td style="text-align:center"></td>')
+            + cell(o["dentro"], "#C6EFCE")
+            + (f'<td style="text-align:center;font-weight:700;background:#F6DBDD;color:#651823">{atraso}</td>' if atraso else '<td style="text-align:center"></td>')
+            + "</tr>")
+    atraso_tg = tg["fatal"] + tg["venc"]
     rows_html.append(
         '<tr style="border-top:2px solid #7E1F2D;background:#F7F2E9;font-weight:700">'
         '<td>TOTAL GERAL</td>'
-        f'<td style="text-align:center;color:#651823">{tg}</td></tr>')
+        f'<td style="text-align:center;color:#651823">{tg["total"]}</td>'
+        f'<td style="text-align:center">{tg["d1"] or ""}</td><td style="text-align:center">{tg["fatal"] or ""}</td>'
+        f'<td style="text-align:center">{tg["venc"] or ""}</td><td style="text-align:center">{tg["dentro"] or ""}</td>'
+        f'<td style="text-align:center">{atraso_tg or ""}</td></tr>')
     st.markdown(
         f'<div class="ig-tw" style="--h:{height}px"><table><thead>{head}</thead>'
         f'<tbody>{"".join(rows_html)}</tbody></table></div>', unsafe_allow_html=True)
@@ -813,31 +860,33 @@ def render_prazos_por_responsavel(active_df, tipo_filter):
 
 
 def render_tabelas_prazos_coordenacao(active_df, tipo_filter):
-    """Duas tabelas lado a lado, mesmo tamanho: Prazos por Coordenador (só totais) e
-    Prazos por Responsável (ordenada por coordenador, responsáveis preservados dentro de cada um)."""
+    """Duas tabelas empilhadas, largura total e mesmo padrão visual: Prazos por
+    Coordenador (Tabela 1, acima) e Prazos por Responsável (Tabela 2, abaixo,
+    ordenada por coordenador, responsáveis preservados dentro de cada um)."""
     HEIGHT = 480
     agg = _agg_prazos_por_responsavel(active_df, tipo_filter)
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown('<div class="ig-sec">Prazos por coordenador</div>', unsafe_allow_html=True)
-        st.caption("Total de prazos de cada coordenador.")
-        if agg is None:
-            st.info("Nenhum prazo encontrado.")
-        else:
-            by_coord = {}
-            for o in agg:
-                c = by_coord.setdefault(o["coord"], {"coord": o["coord"], "total": 0})
-                c["total"] += o["total"]
-            linhas_c = sorted(by_coord.values(), key=lambda x: abbrev_name(x["coord"]).lower())
-            _tabela_prazos_por_coordenador_html(linhas_c, height=HEIGHT)
-    with col2:
-        st.markdown('<div class="ig-sec">Prazos por responsável</div>', unsafe_allow_html=True)
-        st.caption("Responsável e seu Coordenador, com a situação dos prazos por status.")
-        if agg is None:
-            st.info("Nenhum prazo encontrado.")
-        else:
-            linhas_r = sorted(agg, key=lambda x: (abbrev_name(x["coord"]).lower(), abbrev_name(x["resp"]).lower()))
-            _tabela_prazos_por_responsavel_html(linhas_r, height=HEIGHT)
+
+    st.markdown('<div class="ig-sec">Prazos por coordenador</div>', unsafe_allow_html=True)
+    st.caption("Total de prazos de cada coordenador, com a situação por status.")
+    if agg is None:
+        st.info("Nenhum prazo encontrado.")
+    else:
+        by_coord = {}
+        for o in agg:
+            c = by_coord.setdefault(o["coord"], {"coord": o["coord"], "total": 0,
+                                                  "d1": 0, "fatal": 0, "venc": 0, "dentro": 0})
+            for kk in ("total", "d1", "fatal", "venc", "dentro"):
+                c[kk] += o[kk]
+        linhas_c = sorted(by_coord.values(), key=lambda x: abbrev_name(x["coord"]).lower())
+        _tabela_prazos_por_coordenador_html(linhas_c, height=HEIGHT)
+
+    st.markdown('<div class="ig-sec">Prazos por responsável</div>', unsafe_allow_html=True)
+    st.caption("Responsável e seu Coordenador, com a situação dos prazos por status.")
+    if agg is None:
+        st.info("Nenhum prazo encontrado.")
+    else:
+        linhas_r = sorted(agg, key=lambda x: (abbrev_name(x["coord"]).lower(), abbrev_name(x["resp"]).lower()))
+        _tabela_prazos_por_responsavel_html(linhas_r, height=HEIGHT)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1078,6 +1127,7 @@ def page_auditoria(registros, ref):
     else:
         view = pd.DataFrame({
             "Processo": inc["processo"], "Cliente": inc["cliente"], "Tipo": inc["tipo"],
+            "Descrição": inc["desc"],
             "Coordenador": inc["coord_display"].apply(abbrev_name), "Responsável": inc["resp"].apply(abbrev_name),
             "Conclusão": inc["conclusao"], "Inconsistência": inc["incons"]})
         # linhas laranja (inconsistência) — cor fixa
@@ -1199,7 +1249,8 @@ def page_admin():
     if sem_coord_map:
         st.markdown('<div class="ig-sec">2 · Responsáveis sem coordenador</div>', unsafe_allow_html=True)
         st.warning(f"{len(sem_coord_map)} responsável(is) sem coordenador mapeado. "
-                   "Selecione o coordenador de cada um ou mantenha sem coordenador (fica fora do painel público).")
+                   "Selecione o coordenador de cada um ou mantenha sem coordenador (fica fora do painel público). "
+                   "O vínculo escolhido é salvo automaticamente para as próximas cargas.")
         opcoes = ["(manter sem coordenador)"] + sorted(COORD_MAP.keys())
         for resp, qtd in sorted(sem_coord_map.items(), key=lambda x: -x[1]):
             cA, cB = st.columns([2, 2])
@@ -1208,7 +1259,9 @@ def page_admin():
             if escolha != "(manter sem coordenador)":
                 coord_overrides[resp] = escolha
         if coord_overrides:
-            # Reprocessa aplicando as vinculações escolhidas (vale só para esta carga — §8/§18-J)
+            # Grava o aprendizado (vale para esta e para todas as próximas cargas — §8)
+            learn_coord_overrides(coord_overrides)
+            # Reprocessa aplicando as vinculações escolhidas nesta carga
             registros, alertas, sem_coord_map, stats = construir_registros(df, today, coord_overrides=coord_overrides)
 
     # ---- Estatísticas da carga ----
