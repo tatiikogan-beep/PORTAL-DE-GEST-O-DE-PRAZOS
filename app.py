@@ -130,7 +130,7 @@ if os.path.exists(LEARNED_COORD_FILE):
 CLR_HEADER = "7E1F2D"; CLR_HEADER_TXT = "FFFFFF"
 CLR_VERDE = "C6EFCE"; CLR_AMARELO = "FFEB9C"
 CLR_ROSA = "FFC7CE"; CLR_VERM = "E57373"; CLR_VERM_TXT = "FFFFFF"   # seção 13: DU<0 = #E57373
-CLR_LARANJA = "FFCC99"; CLR_GOLD = "CDA736"; CLR_GOLD_TXT = "FFFFFF"
+CLR_GOLD = "CDA736"; CLR_GOLD_TXT = "FFFFFF"
 
 WINE = "#7E1F2D"; WINE_DARK = "#641828"; WINE_LIGHT = "#9B2335"
 GOLD = "#CDA736"; GOLD_DARK = "#8E6E1C"; INK = "#2A2420"; SAND = "#F7F2E9"
@@ -253,10 +253,9 @@ def check_incons(tipo, desc, conclusao, fatal, aud):
     return "; ".join(issues)
 
 
-def get_row_color(du, incons, tipo):
-    """Cor da linha (seção 13), em ordem de prioridade. Usado em tabelas e Excel."""
-    if incons:
-        return CLR_LARANJA, "000000"                                 # P1 · laranja
+def get_row_color(du, tipo):
+    """Cor da linha (seção 13), em ordem de prioridade. Usado em tabelas e Excel
+    (fora da Auditoria — que tem sua própria cor fixa para inconsistências)."""
     if tipo in ("AUDIÊNCIA DE JULGAMENTO", "ACOMPANHAR JULGAMENTO"):
         return CLR_VERDE, "000000"                                   # P2 · verde
     if du is None:
@@ -349,10 +348,11 @@ def construir_registros(df, today, coord_overrides=None):
     """
     Constrói registros aplicando todas as regras do manual.
     coord_overrides: {responsável: coordenador} escolhido manualmente na carga (seção 8).
-    Retorna (registros, alertas, sem_coord_map) — sem_coord_map = {resp: qtd} não mapeados.
+    Retorna (registros, sem_coord_map, stats) — sem_coord_map = {resp: qtd} não mapeados.
+    Cada registro carrega seu próprio campo "incons" (usado só pela aba Auditoria).
     """
     coord_overrides = coord_overrides or {}
-    registros, alertas, seen = [], [], set()
+    registros, seen = [], set()
     sem_coord_map = {}
     # Transparência (nenhum registro sai silenciosamente): contadores de descartes.
     stats = {"sem_data": 0, "fora_recorte": 0, "duplicatas": 0}
@@ -396,13 +396,6 @@ def construir_registros(df, today, coord_overrides=None):
         cliente = _get(row, "Cliente")
         num_proc = _get(row, "Número do processo")      # seção 16
 
-        if incons:
-            alertas.append({
-                "Processo": processo, "Cliente": cliente, "Número do Processo": num_proc,
-                "Tipo": tipo, "Responsável": resp_disp, "Coordenador": coord_display,
-                "Conclusão": conclusao.strftime("%d/%m/%Y"), "DU": du, "Inconsistência": incons,
-            })
-
         registros.append({
             "id": id_, "processo": processo, "tipo": tipo, "desc": desc[:300],
             "status": _get(row, "Status"), "resp": resp_disp,
@@ -412,7 +405,7 @@ def construir_registros(df, today, coord_overrides=None):
             "cliente": cliente, "num_proc": num_proc,
         })
     registros.sort(key=lambda r: (r["conclusao_iso"], r["resp"], r["processo"]))
-    return registros, alertas, sem_coord_map, stats
+    return registros, sem_coord_map, stats
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -480,9 +473,11 @@ def push_to_github(token, repo_name, file_path, content, commit_msg):
 # EXPORTAÇÃO EXCEL / CSV (seção 13)
 # ════════════════════════════════════════════════════════════════════════════
 COLS_DETAIL = ["Processo", "Cliente", "Número do Processo", "Tipo", "Descrição",
-               "Coordenador", "Responsável", "Conclusão Prevista", "Inconsistência"]
+               "Coordenador", "Responsável", "Conclusão Prevista"]
+# Auditoria (única aba que ainda exibe inconsistências) usa esta variante.
+COLS_DETAIL_AUDITORIA = COLS_DETAIL + ["Inconsistência"]
 COLS_RESUMO = ["Responsável", "Prazo", "Audiência", "Diversos", "Pauta de Julgamento",
-               "Perícia", "Publicação", "Total", "Inconsistências"]
+               "Perícia", "Publicação", "Total"]
 
 
 def _hstyle(cell):
@@ -491,8 +486,8 @@ def _hstyle(cell):
     cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
 
-def apply_row_style(ws, row_num, du, incons, tipo, num_cols):
-    bg, txt = get_row_color(du, incons, tipo)
+def apply_row_style(ws, row_num, du, tipo, num_cols):
+    bg, txt = get_row_color(du, tipo)
     if not bg:
         return
     fill = PatternFill("solid", fgColor=bg)
@@ -512,8 +507,7 @@ def write_sheet(ws, data_rows, cols, is_resumo=False):
             cell.alignment = Alignment(vertical="top", wrap_text=(cols[ci - 1] == "Descrição"))
             cell.font = Font(size=10)
         if not is_resumo:
-            apply_row_style(ws, ri, row.get("Dias Úteis"), row.get("Inconsistência", ""),
-                            row.get("Tipo", ""), len(cols))
+            apply_row_style(ws, ri, row.get("Dias Úteis"), row.get("Tipo", ""), len(cols))
         elif row.get("Responsável") == "TOTAL":
             for ci in range(1, len(cols) + 1):
                 ws.cell(row=ri, column=ci).fill = PatternFill("solid", fgColor=CLR_GOLD)
@@ -544,15 +538,13 @@ def gerar_excel_coord(coord_key, registros, coord_display):
         rp = r["resp"]
         o = by_resp.setdefault(rp, {"Responsável": rp, "Prazo": 0, "Audiência": 0, "Diversos": 0,
                                     "Pauta de Julgamento": 0, "Perícia": 0, "Publicação": 0,
-                                    "Total": 0, "Inconsistências": 0})
+                                    "Total": 0})
         t = r["tipo"]
         if t in ("Prazo", "Audiência", "Pauta de Julgamento", "Perícia", "Publicação"):
             o[t] += 1
         else:
             o["Diversos"] += 1
         o["Total"] += 1
-        if r["incons"]:
-            o["Inconsistências"] += 1
     resumo_rows = sorted(by_resp.values(), key=lambda x: -x["Total"])
     tot = {c: sum(r.get(c, 0) for r in resumo_rows if isinstance(r.get(c, 0), int)) for c in COLS_RESUMO[1:]}
     tot["Responsável"] = "TOTAL"
@@ -564,7 +556,6 @@ def gerar_excel_coord(coord_key, registros, coord_display):
 
     for tipo_key, nome_aba in [("Prazo", "Prazos"), ("Audiência", "Audiências"), ("Diversos", "Diversos")]:
         write_sheet(wb.create_sheet(nome_aba), [_to_detail(r) for r in rows if r["tipo"] == tipo_key], COLS_DETAIL)
-    write_sheet(wb.create_sheet("Inconsistências"), [_to_detail(r) for r in rows if r["incons"]], COLS_DETAIL)
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -572,11 +563,11 @@ def gerar_excel_coord(coord_key, registros, coord_display):
     return buf
 
 
-def exportar_xlsx_filtrado(rows):
+def exportar_xlsx_filtrado(rows, cols=COLS_DETAIL):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Dados"
-    write_sheet(ws, [_to_detail(r) for r in rows], COLS_DETAIL)
+    write_sheet(ws, [_to_detail(r) for r in rows], cols)
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -684,8 +675,7 @@ def render_color_legend():
         '<span><span class="sw" style="background:#C6EFCE"></span>No prazo</span>'
         '<span><span class="sw" style="background:#FFEB9C"></span>Amanhã (D-1)</span>'
         '<span><span class="sw" style="background:#FFC7CE"></span>Vence hoje</span>'
-        '<span><span class="sw" style="background:#E57373"></span>Vencido / pendente</span>'
-        '<span><span class="sw" style="background:#FFCC99"></span>Inconsistência</span></div>',
+        '<span><span class="sw" style="background:#E57373"></span>Vencido / pendente</span></div>',
         unsafe_allow_html=True)
 
 
@@ -699,7 +689,7 @@ def render_html_table(df, height=440, color_rows=True):
     for _, row in df.iterrows():
         bg, fg = "", ""
         if color_rows:
-            bg, fg = get_row_color(row.get("_du"), str(row.get("Inconsistência", "") or ""), str(row.get("Tipo", "") or ""))
+            bg, fg = get_row_color(row.get("_du"), str(row.get("Tipo", "") or ""))
         style = f'style="background:#{bg};color:#{fg}"' if bg else ""
         tds = "".join(f"<td>{'' if pd.isna(v) else v}</td>" for c, v in zip(df.columns, row.tolist()) if not c.startswith("_"))
         body.append(f"<tr {style}>{tds}</tr>")
@@ -709,7 +699,7 @@ def render_html_table(df, height=440, color_rows=True):
 
 
 # ---- Gráficos (Altair) ----
-def chart_bar_h(df_data, val_col, lbl_col, color="#7E1F2D"):
+def chart_bar_h(df_data, val_col, lbl_col, color="#7E1F2D", height=None):
     if df_data.empty:
         return
     import altair as alt
@@ -721,7 +711,9 @@ def chart_bar_h(df_data, val_col, lbl_col, color="#7E1F2D"):
                 scale=alt.Scale(domain=[0, float(d[val_col].max()) * 1.18])))
     bars = base.mark_bar(color=color, cornerRadiusTopRight=4, cornerRadiusBottomRight=4)
     labels = base.mark_text(align="left", dx=5, fontSize=12, fontWeight="bold", color="#2A2420").encode(text="_f:N")
-    st.altair_chart((bars + labels).properties(height=max(200, 26 * len(d)))
+    # height fixo (ex.: para pareamento simétrico com outro gráfico) ou proporcional
+    # à quantidade de linhas, para não distorcer com poucos itens.
+    st.altair_chart((bars + labels).properties(height=height or max(200, 26 * len(d)))
                     .configure_axis(grid=True, gridColor="#EDE5D4").configure_view(strokeWidth=0),
                     use_container_width=True)
 
@@ -847,19 +839,7 @@ def _tabela_prazos_por_coordenador_html(linhas, height=480):
         f'<tbody>{"".join(rows_html)}</tbody></table></div>', unsafe_allow_html=True)
 
 
-def render_prazos_por_responsavel(active_df, tipo_filter):
-    """Tabela resumida por responsável — SOMENTE tipo Prazo (manual §14)."""
-    st.markdown('<div class="ig-sec">Prazos por responsável</div>', unsafe_allow_html=True)
-    st.caption("Responsável e seu Coordenador, com a situação dos prazos por status.")
-    agg = _agg_prazos_por_responsavel(active_df, tipo_filter)
-    if agg is None:
-        st.info("Nenhum prazo encontrado.")
-        return
-    linhas = sorted(agg, key=lambda x: abbrev_name(x["resp"]).lower())  # ordem alfabética por responsável
-    _tabela_prazos_por_responsavel_html(linhas)
-
-
-def render_tabelas_prazos_coordenacao(active_df, tipo_filter):
+def render_tabelas_prazos(active_df, tipo_filter):
     """Duas tabelas empilhadas, largura total e mesmo padrão visual: Prazos por
     Coordenador (Tabela 1, acima) e Prazos por Responsável (Tabela 2, abaixo,
     ordenada por coordenador, responsáveis preservados dentro de cada um)."""
@@ -911,12 +891,15 @@ def calc_du_efetivo(row, hoje):
 
 
 def base_df(registros, hoje=None):
-    """DataFrame público: sem coordenações ocultas, sem responsável vazio."""
+    """DataFrame público: sem coordenações ocultas, sem responsável vazio/ausente.
+    Prazos sem responsável ficam de fora de toda tela/gráfico/indicador (mas
+    continuam armazenados em dados_publicados.json)."""
     if not registros:
         return pd.DataFrame()
     df = pd.DataFrame(registros)
     df["conclusao_dt"] = pd.to_datetime(df["conclusao_iso"])
-    df = df[df["resp"].notna() & (df["resp"] != "") & (df["resp"] != "nan")]
+    df = df[df["resp"].notna() & (df["resp"] != "") & (df["resp"] != "nan") &
+            (df["resp"] != "(Sem responsável)")]
     df = df[~df["coord"].isin(HIDDEN_COORDS)]                       # seção 11
     df["du_efetivo"] = df.apply(lambda r: calc_du_efetivo(r, hoje), axis=1)
     return df
@@ -936,6 +919,26 @@ def apply_dates(df, ini, fim):
     if fim:
         df = df[df["conclusao_dt"] <= pd.Timestamp(fim)]
     return df
+
+
+# Legenda/situação do prazo — mesma lógica de du_efetivo usada nos indicadores
+# e nas tabelas Prazos por Coordenador/Responsável (seção 14).
+STATUS_OPCOES = ["No prazo", "Amanhã (D-1)", "Vence hoje", "Vencido / Pendente"]
+
+
+def apply_status(df, status_f):
+    if not status_f or set(status_f) == set(STATUS_OPCOES):
+        return df
+    cond = pd.Series(False, index=df.index)
+    if "No prazo" in status_f:
+        cond |= df["du_efetivo"] > 1
+    if "Amanhã (D-1)" in status_f:
+        cond |= df["du_efetivo"] == 1
+    if "Vence hoje" in status_f:
+        cond |= df["du_efetivo"] == 0
+    if "Vencido / Pendente" in status_f:
+        cond |= df["du_efetivo"] < 0
+    return df[cond]
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -976,16 +979,16 @@ def page_geral(registros, ref):
     if layout == "Panorama":
         cards_row(metric_items(df), 7)
         st.markdown('<div class="ig-sec">Composição por tipo · Distribuição por coordenador</div>', unsafe_allow_html=True)
-        ca, cb = st.columns([1, 1.35])
+        ca, cb = st.columns(2)
         with ca:
             by_t = df.groupby("tipo").size().reset_index(name="q").sort_values("q", ascending=False)
             chart_donut(by_t["tipo"].tolist(), by_t["q"].tolist())
         with cb:
             by_c = df.groupby("coord_display").size().reset_index(name="Pendências").sort_values("Pendências", ascending=False)
             by_c["coord_display"] = by_c["coord_display"].apply(abbrev_name)
-            chart_bar_h(by_c, "Pendências", "coord_display", WINE)
+            chart_bar_h(by_c, "Pendências", "coord_display", WINE, height=260)
         st.markdown('<div class="ig-sec">Responsáveis com mais pendências</div>', unsafe_allow_html=True)
-        top = (df[df.resp != "(Sem responsável)"].groupby("resp").size()
+        top = (df.groupby("resp").size()
                .reset_index(name="Qtd").sort_values("Qtd", ascending=False).head(10))
         top["resp"] = top["resp"].apply(abbrev_name)
         chart_bar_h(top, "Qtd", "resp", WINE)
@@ -1005,12 +1008,37 @@ def page_geral(registros, ref):
             by_t = df.groupby("tipo").size().reset_index(name="q").sort_values("q", ascending=False)
             chart_donut(by_t["tipo"].tolist(), by_t["q"].tolist())
         with cb:
-            top = (df[df.resp != "(Sem responsável)"].groupby("resp").size()
+            top = (df.groupby("resp").size()
                    .reset_index(name="Qtd").sort_values("Qtd", ascending=False).head(10))
             top["resp"] = top["resp"].apply(abbrev_name)
             chart_bar_h(top, "Qtd", "resp", WINE)
 
-    render_prazos_por_responsavel(df, tipo_f)   # seção 14 — ao final da página
+    # ---- Prazos por Coordenador / por Responsável (seção 14) ----
+    # Bloco de filtros próprio, idêntico ao que existia na aba Por Coordenação,
+    # independente dos filtros de Panorama/Prioridades acima.
+    st.markdown('<div class="ig-sec">Prazos por Coordenador e por Responsável</div>', unsafe_allow_html=True)
+    pc1, pc2, pc3, pc4, pc5, pc6 = st.columns(6)
+    p_ini = pc1.date_input("Data Início", value=None, key="g2_ini")
+    p_fim = pc2.date_input("Data Fim", value=None, key="g2_fim")
+    p_coord_f = pc3.selectbox("Coordenador", ["Todos"] + sorted(df0["coord_display"].dropna().unique().tolist()), key="g2_coord")
+    p_resp_f = pc4.selectbox("Responsável", ["Todos"] + sorted(df0["resp"].dropna().unique().tolist()), key="g2_resp")
+    p_tipos = ["Todos"] + [t for t in TIPOS_CONHECIDOS if t in df0["tipo"].unique()]
+    p_tipo_f = pc5.selectbox("Tipo", p_tipos, key="g2_tipo")
+    p_proc_f = pc6.text_input("Buscar processo / cliente", key="g2_proc")
+
+    pdf = apply_dates(df0, p_ini, p_fim)
+    if p_coord_f != "Todos":
+        pdf = pdf[pdf["coord_display"] == p_coord_f]
+    if p_resp_f != "Todos":
+        pdf = pdf[pdf["resp"] == p_resp_f]
+    if p_tipo_f != "Todos":
+        pdf = pdf[pdf["tipo"] == p_tipo_f]
+    if p_proc_f:
+        q = p_proc_f.lower()
+        pdf = pdf[pdf["processo"].str.lower().str.contains(q, na=False) |
+                  pdf["cliente"].str.lower().str.contains(q, na=False)]
+
+    render_tabelas_prazos(pdf, p_tipo_f)
 
 
 def page_coordenacao(registros, ref):
@@ -1056,26 +1084,24 @@ def page_coordenacao(registros, ref):
                        "Pauta": int((grp.tipo == "Pauta de Julgamento").sum()), "Perícia": int((grp.tipo == "Perícia").sum()),
                        "Public.": int((grp.tipo == "Publicação").sum()),
                        "Diversos": int(((grp.tipo == "Diversos") | ~known).sum()),
-                       "Total": len(grp), "Incons.": int((grp["incons"] != "").sum())})
+                       "Total": len(grp)})
         rr.sort(key=lambda x: -x["Total"])
         render_html_table(pd.DataFrame(rr), height=300, color_rows=False)
 
     st.markdown('<div class="ig-sec">Detalhamento</div>', unsafe_allow_html=True)
+    status_f = st.multiselect("Situação do prazo", STATUS_OPCOES, default=STATUS_OPCOES, key="c_status")
     render_color_legend()
-    det = df.copy()
+    det = apply_status(df, status_f)
     det_view = pd.DataFrame({
         "Processo": det["processo"], "Cliente": det["cliente"], "Tipo": det["tipo"],
         "Descrição": det["desc"], "Coordenador": det["coord_display"].apply(abbrev_name),
-        "Responsável": det["resp"].apply(abbrev_name), "Conclusão": det["conclusao"],
-        "Inconsistência": det["incons"].replace("", "—"), "_du": det["du"]})
+        "Responsável": det["resp"].apply(abbrev_name), "Conclusão": det["conclusao"], "_du": det["du"]})
     st.caption(f"Exibindo {min(len(det_view), 200)} de {fmt_num(len(det_view))} registros.")
     render_html_table(det_view.head(200), height=420)
 
     buf = exportar_xlsx_filtrado(df.to_dict("records"))
     st.download_button("📥 Exportar seleção (Excel)", buf, "IGSA_Filtrado.xlsx",
                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-    render_tabelas_prazos_coordenacao(df, tipo_f)   # seção 14 — ao final da página
 
 
 def page_auditoria(registros, ref):
@@ -1138,7 +1164,8 @@ def page_auditoria(registros, ref):
         thead = "".join(f"<th>{c}</th>" for c in view.columns)
         st.markdown(f'<div class="ig-tw" style="--h:460px"><table><thead><tr>{thead}</tr></thead>'
                     f'<tbody>{html_rows}</tbody></table></div>', unsafe_allow_html=True)
-        st.download_button("📥 Exportar Inconsistências", exportar_xlsx_filtrado(inc.to_dict("records")),
+        st.download_button("📥 Exportar Inconsistências",
+                           exportar_xlsx_filtrado(inc.to_dict("records"), cols=COLS_DETAIL_AUDITORIA),
                            "IGSA_Auditoria.xlsx",
                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -1161,7 +1188,7 @@ def page_exportacao(registros, ref):
         return
 
     st.markdown('<div class="ig-sec">Relatório por coordenação</div>', unsafe_allow_html=True)
-    st.caption("Cada arquivo traz abas de Resumo, Prazos, Diversos e Inconsistências, com formatação condicional por prazo.")
+    st.caption("Cada arquivo traz abas de Resumo, Prazos e Diversos, com formatação condicional por prazo.")
     coords = sorted({r["coord"] for r in active if r["coord"] != SEM_COORD})
     grid = st.columns(3)
     for i, ck in enumerate(coords):
@@ -1169,11 +1196,10 @@ def page_exportacao(registros, ref):
         disp = COORD_DISPLAY.get(ck, ck)
         n_p = sum(1 for r in crows if r["tipo"] == "Prazo")
         n_a = sum(1 for r in crows if r["tipo"] == "Audiência")
-        n_i = sum(1 for r in crows if r["incons"])
         with grid[i % 3]:
             with st.container(border=True):
                 st.markdown(f"**{disp}**")
-                st.caption(f"{len(crows)} atividades · {n_p} prazos · {n_a} audiências · {n_i} inconsist.")
+                st.caption(f"{len(crows)} atividades · {n_p} prazos · {n_a} audiências")
                 st.download_button("📥 Baixar Excel", gerar_excel_coord(ck, active, disp),
                                    f"IGSA_{disp[:28].replace(' ', '_')}.xlsx",
                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1233,12 +1259,11 @@ def page_admin():
             if len(df) < 5:
                 st.error("❌ Arquivo com menos de 5 linhas.")
                 return
-            registros, alertas, sem_coord_map, stats = construir_registros(df, today)
+            registros, sem_coord_map, stats = construir_registros(df, today)
         except Exception as e:
             st.error(f"❌ Erro ao processar: {e}")
             return
-    st.success(f"✅ {fmt_num(len(df))} linhas · {fmt_num(len(registros))} no recorte (DU ≤ {DU_LIMIT}) · "
-               f"{len(alertas)} inconsistências detectadas")
+    st.success(f"✅ {fmt_num(len(df))} linhas · {fmt_num(len(registros))} no recorte (DU ≤ {DU_LIMIT})")
     st.caption(
         f"Transparência da carga · {fmt_num(stats['fora_recorte'])} atividades futuras (DU > {DU_LIMIT}) fora do painel "
         f"· {fmt_num(stats['sem_data'])} sem data de conclusão · {fmt_num(stats['duplicatas'])} duplicatas removidas. "
@@ -1262,48 +1287,28 @@ def page_admin():
             # Grava o aprendizado (vale para esta e para todas as próximas cargas — §8)
             learn_coord_overrides(coord_overrides)
             # Reprocessa aplicando as vinculações escolhidas nesta carga
-            registros, alertas, sem_coord_map, stats = construir_registros(df, today, coord_overrides=coord_overrides)
+            registros, sem_coord_map, stats = construir_registros(df, today, coord_overrides=coord_overrides)
 
     # ---- Estatísticas da carga ----
     st.markdown('<div class="ig-sec">Panorama da carga</div>', unsafe_allow_html=True)
     stats = [("Total", fmt_num(len(registros)), WINE),
              ("Prazos", fmt_num(sum(1 for r in registros if r["tipo"] == "Prazo")), "#9E3340"),
              ("Audiências", fmt_num(sum(1 for r in registros if r["tipo"] == "Audiência")), GOLD),
-             ("Sem Coord.", fmt_num(sum(1 for r in registros if r["coord"] == SEM_COORD)), "#BE5862"),
-             ("Inconsist.", fmt_num(len(alertas)), GOLD_DARK)]
-    cards_row(stats, 5)
+             ("Sem Coord.", fmt_num(sum(1 for r in registros if r["coord"] == SEM_COORD)), "#BE5862")]
+    cards_row(stats, 4)
 
-    ca, cb = st.columns([1, 1.3])
-    with ca:
-        st.markdown('<div class="ig-sec">Distribuição por coordenação</div>', unsafe_allow_html=True)
-        cc = {}
-        for r in registros:
-            cc[r["coord_display"]] = cc.get(r["coord_display"], 0) + 1
-        for k, v in sorted(cc.items(), key=lambda x: -x[1]):
-            st.markdown(f'<div style="display:flex;justify-content:space-between;padding:6px 0;'
-                        f'border-bottom:1px solid #E5DAC7;font-size:13px"><span>{k}</span>'
-                        f'<span style="color:#8E6E1C;font-weight:600">{v}</span></div>', unsafe_allow_html=True)
-    with cb:
-        st.markdown('<div class="ig-sec">Inconsistências por tipo</div>', unsafe_allow_html=True)
-        ti = {}
-        for a in alertas:
-            for t in a["Inconsistência"].split(";"):
-                t = t.strip()
-                if t:
-                    ti[t] = ti.get(t, 0) + 1
-        if ti:
-            for k, v in sorted(ti.items(), key=lambda x: -x[1]):
-                st.markdown(f'<div style="display:flex;justify-content:space-between;padding:6px 0;'
-                            f'border-bottom:1px solid #E5DAC7;font-size:13px"><span>{k}</span>'
-                            f'<span style="color:#8E6E1C;font-weight:700">{v}</span></div>', unsafe_allow_html=True)
-        else:
-            st.success("Nenhuma inconsistência detectada.")
+    st.markdown('<div class="ig-sec">Distribuição por coordenação</div>', unsafe_allow_html=True)
+    cc = {}
+    for r in registros:
+        cc[r["coord_display"]] = cc.get(r["coord_display"], 0) + 1
+    for k, v in sorted(cc.items(), key=lambda x: -x[1]):
+        st.markdown(f'<div style="display:flex;justify-content:space-between;padding:6px 0;'
+                    f'border-bottom:1px solid #E5DAC7;font-size:13px"><span>{k}</span>'
+                    f'<span style="color:#8E6E1C;font-weight:600">{v}</span></div>', unsafe_allow_html=True)
 
     # ---- Publicação ----
     st.markdown('<div class="ig-sec">3 · Publicar dados</div>', unsafe_allow_html=True)
     st.caption("Ao publicar, o painel passa a exibir esta carga para toda a equipe.")
-    if alertas:
-        st.warning(f"⚠️ {len(alertas)} inconsistências. Revise no LegalOne ou publique assim mesmo.")
     p1, p2 = st.columns([2, 1])
     versao = p1.text_input("Identificação da carga", value=f"{today.strftime('%d/%m/%Y')} — Carga diária (Geral Pendentes)")
     gh_token = p2.text_input("GitHub Token (opcional)", type="password",
