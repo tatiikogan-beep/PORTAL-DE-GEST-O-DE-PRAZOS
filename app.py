@@ -1243,7 +1243,7 @@ def page_admin():
             st.rerun()
 
     st.markdown('<div class="ig-sec">1 · Carregar planilha</div>', unsafe_allow_html=True)
-    today = st.date_input("Data de referência", value=date(2026, 7, 1))
+    today = st.date_input("Data de referência", value=date.today())
     uploaded = st.file_uploader("Selecionar arquivo Excel (exportação LegalOne · .xlsx)", type=["xlsx", "xls"])
     if not uploaded:
         st.info("Formato aceito: exportação LegalOne (.xlsx). O cabeçalho é lido a partir da 2ª linha.")
