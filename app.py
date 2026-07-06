@@ -129,7 +129,7 @@ if os.path.exists(LEARNED_COORD_FILE):
 # ---- Paleta (design system vinho/dourado) ----
 CLR_HEADER = "7E1F2D"; CLR_HEADER_TXT = "FFFFFF"
 CLR_VERDE = "C6EFCE"; CLR_AMARELO = "FFEB9C"
-CLR_ROSA = "FFC7CE"; CLR_VERM = "E57373"; CLR_VERM_TXT = "FFFFFF"   # seção 13: DU<0 = #E57373
+CLR_ROSA = "FFC7CE"; CLR_VERM = "FFDDB3"; CLR_VERM_TXT = "000000"   # seção 13: DU<0 = laranja bem claro
 CLR_GOLD = "CDA736"; CLR_GOLD_TXT = "FFFFFF"
 
 WINE = "#7E1F2D"; WINE_DARK = "#641828"; WINE_LIGHT = "#9B2335"
@@ -486,23 +486,12 @@ def _hstyle(cell):
     cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
 
-def lighten_hex(hex_color, factor=0.55):
-    """Clareia uma cor hex misturando com branco (Excel não suporta opacidade
-    real em preenchimento sólido, então "mais transparente" = mais clara)."""
-    hex_color = hex_color.lstrip("#")
-    r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
-    r, g, b = (int(c + (255 - c) * factor) for c in (r, g, b))
-    return f"{r:02X}{g:02X}{b:02X}"
-
-
 def apply_row_style(ws, row_num, du, tipo, num_cols):
-    bg, _ = get_row_color(du, tipo)
+    bg, txt = get_row_color(du, tipo)
     if not bg:
         return
-    # Preenchimento clareado na planilha exportada; texto escuro para manter
-    # a leitura mesmo com o fundo mais suave.
-    fill = PatternFill("solid", fgColor=lighten_hex(bg))
-    font = Font(color="2A2420", size=10)
+    fill = PatternFill("solid", fgColor=bg)
+    font = Font(color=txt, size=10)
     for col in range(1, num_cols + 1):
         ws.cell(row=row_num, column=col).fill = fill
         ws.cell(row=row_num, column=col).font = font
@@ -686,7 +675,7 @@ def render_color_legend():
         '<span><span class="sw" style="background:#C6EFCE"></span>No prazo</span>'
         '<span><span class="sw" style="background:#FFEB9C"></span>Amanhã (D-1)</span>'
         '<span><span class="sw" style="background:#FFC7CE"></span>Vence hoje</span>'
-        '<span><span class="sw" style="background:#E57373"></span>Vencido / pendente</span></div>',
+        '<span><span class="sw" style="background:#FFDDB3"></span>Vencido / pendente</span></div>',
         unsafe_allow_html=True)
 
 
@@ -795,7 +784,7 @@ def _tabela_prazos_por_responsavel_html(linhas, height=480):
             f'<td style="color:#756A5D;font-size:11.5px">{abbrev_name(o["coord"])}</td>'
             f'<td style="text-align:center;font-weight:700;color:#651823">{o["total"]}</td>'
             + cell(o["d1"], "#FFEB9C") + cell(o["fatal"], "#FFC7CE")
-            + (f'<td style="text-align:center;font-weight:700;background:#E57373;color:#fff">{o["venc"]}</td>' if o["venc"] else '<td style="text-align:center"></td>')
+            + cell(o["venc"], "#FFDDB3")
             + cell(o["dentro"], "#C6EFCE")
             + (f'<td style="text-align:center;font-weight:700;background:#F6DBDD;color:#651823">{atraso}</td>' if atraso else '<td style="text-align:center"></td>')
             + "</tr>")
@@ -833,7 +822,7 @@ def _tabela_prazos_por_coordenador_html(linhas, height=480):
             f'<td style="font-weight:500">{abbrev_name(o["coord"])}</td>'
             f'<td style="text-align:center;font-weight:700;color:#651823">{o["total"]}</td>'
             + cell(o["d1"], "#FFEB9C") + cell(o["fatal"], "#FFC7CE")
-            + (f'<td style="text-align:center;font-weight:700;background:#E57373;color:#fff">{o["venc"]}</td>' if o["venc"] else '<td style="text-align:center"></td>')
+            + cell(o["venc"], "#FFDDB3")
             + cell(o["dentro"], "#C6EFCE")
             + (f'<td style="text-align:center;font-weight:700;background:#F6DBDD;color:#651823">{atraso}</td>' if atraso else '<td style="text-align:center"></td>')
             + "</tr>")
@@ -1005,7 +994,7 @@ def page_geral(registros, ref):
         chart_bar_h(top, "Qtd", "resp", WINE)
     else:  # Prioridades
         s = lambda cond: fmt_num(len(df[cond]))
-        tiles = [("Vencidos", s(df.du_efetivo < 0), "#F4D6DA", "#8E1220", "pendentes de baixa"),
+        tiles = [("Vencidos", s(df.du_efetivo < 0), "#FFDDB3", "#8A4B12", "pendentes de baixa"),
                  ("Vencem hoje", s(df.du_efetivo == 0), "#FADFE3", "#8E1220", "prazo fatal"),
                  ("Amanhã (D-1)", s(df.du_efetivo == 1), "#FAEFC9", "#6b5410", "agir hoje"),
                  ("Total pendente", fmt_num(len(df)), "#F6DBDD", "#651823", "no recorte atual")]
