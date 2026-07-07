@@ -111,6 +111,12 @@ DATA_FILE = "dados_publicados.json"
 # vínculo é gravado aqui e passa a valer para todas as cargas seguintes.
 LEARNED_COORD_FILE = "coord_aprendido.json"
 
+# Correções de nome de responsável (ex.: grafia divergente no LegalOne) e
+# responsáveis marcados para NUNCA importar — ambos definidos na seção 2 da
+# Área Administrativa e válidos para todas as cargas seguintes.
+LEARNED_NAME_FILE = "nomes_corrigidos.json"
+LEARNED_EXCLUDE_FILE = "responsaveis_nao_importar.json"
+
 # Rótulo especial para responsáveis sem vínculo de coordenador (seções 6/8).
 SEM_COORD = "SEM COORDENADOR"
 
@@ -123,6 +129,22 @@ if os.path.exists(LEARNED_COORD_FILE):
     try:
         with open(LEARNED_COORD_FILE, encoding="utf-8") as _f:
             RESP_TO_COORD.update(json.load(_f))
+    except Exception:
+        pass
+
+NOME_CORRECTIONS = {}
+if os.path.exists(LEARNED_NAME_FILE):
+    try:
+        with open(LEARNED_NAME_FILE, encoding="utf-8") as _f:
+            NOME_CORRECTIONS = json.load(_f)
+    except Exception:
+        pass
+
+NAO_IMPORTAR = set()
+if os.path.exists(LEARNED_EXCLUDE_FILE):
+    try:
+        with open(LEARNED_EXCLUDE_FILE, encoding="utf-8") as _f:
+            NAO_IMPORTAR = set(json.load(_f))
     except Exception:
         pass
 
@@ -365,18 +387,22 @@ def resolver_responsavel(row):
     return ""
 
 
-def construir_registros(df, today, coord_overrides=None):
+def construir_registros(df, today, coord_overrides=None, resp_corrections=None, resp_excluir=None):
     """
     Constrói registros aplicando todas as regras do manual.
     coord_overrides: {responsável: coordenador} escolhido manualmente na carga (seção 8).
+    resp_corrections: {nome digitado: nome corrigido} escolhido manualmente na carga (seção 8).
+    resp_excluir: {responsáveis} marcados para não importar nesta carga (seção 8).
     Retorna (registros, sem_coord_map, stats) — sem_coord_map = {resp: qtd} não mapeados.
     Cada registro carrega seu próprio campo "incons" (usado só pela aba Auditoria).
     """
     coord_overrides = coord_overrides or {}
+    resp_corrections = resp_corrections or {}
+    resp_excluir = resp_excluir or set()
     registros, seen = [], set()
     sem_coord_map = {}
     # Transparência (nenhum registro sai silenciosamente): contadores de descartes.
-    stats = {"sem_data": 0, "fora_recorte": 0, "duplicatas": 0}
+    stats = {"sem_data": 0, "fora_recorte": 0, "duplicatas": 0, "nao_importados": 0}
     for _, row in df.iterrows():
         conclusao = parse_date(row.get("Conclusão prevista"))
         if not conclusao:
@@ -411,6 +437,12 @@ def construir_registros(df, today, coord_overrides=None):
         pasta = _get(row, "Pasta")
         processo = pasta if pasta else id_              # seção 5
         resp = resolver_responsavel(row)                # seção 6
+        # Correção de grafia (persistida + desta carga) e exclusão manual
+        # de importação (seção 2/8 da Área Administrativa).
+        resp = NOME_CORRECTIONS.get(resp, resp_corrections.get(resp, resp))
+        if resp in NAO_IMPORTAR or resp in resp_excluir:
+            stats["nao_importados"] += 1
+            continue
 
         # dedup: Id + Conclusão + Tipo + Responsável (seção 3)
         key = f"{id_}|{conclusao.isoformat()}|{tipo}|{resp}"
@@ -486,6 +518,40 @@ def learn_coord_overrides(coord_overrides):
     aprendidos.update(coord_overrides)
     with open(LEARNED_COORD_FILE, "w", encoding="utf-8") as f:
         json.dump(aprendidos, f, ensure_ascii=False, indent=2)
+
+
+def learn_resp_corrections(resp_corrections):
+    """Grava permanentemente as correções de nome de responsável (seção 8),
+    para que as próximas cargas já reconheçam o nome corrigido."""
+    if not resp_corrections:
+        return
+    aprendidos = {}
+    if os.path.exists(LEARNED_NAME_FILE):
+        try:
+            with open(LEARNED_NAME_FILE, encoding="utf-8") as f:
+                aprendidos = json.load(f)
+        except Exception:
+            aprendidos = {}
+    aprendidos.update(resp_corrections)
+    with open(LEARNED_NAME_FILE, "w", encoding="utf-8") as f:
+        json.dump(aprendidos, f, ensure_ascii=False, indent=2)
+
+
+def learn_resp_excluir(resp_excluir):
+    """Grava permanentemente os responsáveis marcados para nunca importar
+    (seção 8), para que as próximas cargas já os descartem automaticamente."""
+    if not resp_excluir:
+        return
+    excluidos = set()
+    if os.path.exists(LEARNED_EXCLUDE_FILE):
+        try:
+            with open(LEARNED_EXCLUDE_FILE, encoding="utf-8") as f:
+                excluidos = set(json.load(f))
+        except Exception:
+            excluidos = set()
+    excluidos |= set(resp_excluir)
+    with open(LEARNED_EXCLUDE_FILE, "w", encoding="utf-8") as f:
+        json.dump(sorted(excluidos), f, ensure_ascii=False, indent=2)
 
 
 def push_to_github(token, repo_name, file_path, content, commit_msg):
@@ -978,10 +1044,10 @@ def page_geral(registros, ref):
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     ini = c1.date_input("Data Início", value=None, key="g_ini")
     fim = c2.date_input("Data Fim", value=None, key="g_fim")
-    coords = ["Todos"] + sorted(df0["coord_display"].dropna().unique().tolist())
-    coord_f = c3.selectbox("Coordenador", coords, key="g_coord")
-    resps = ["Todos"] + sorted(df0["resp"].dropna().unique().tolist())
-    resp_f = c4.selectbox("Responsável", resps, key="g_resp")
+    coords = sorted(df0["coord_display"].dropna().unique().tolist())
+    coord_f = c3.multiselect("Coordenador", coords, key="g_coord")
+    resps = sorted(df0["resp"].dropna().unique().tolist())
+    resp_f = c4.multiselect("Responsável", resps, key="g_resp")
     tipos = ["Todos"] + [t for t in TIPOS_CONHECIDOS if t in df0["tipo"].unique()]
     tipo_f = c5.selectbox("Tipo", tipos, key="g_tipo")
     proc_f = c6.text_input("Buscar processo / cliente", key="g_proc")
@@ -990,11 +1056,12 @@ def page_geral(registros, ref):
 
     # Filtro único: vale para Panorama/Prioridades E para as tabelas Prazos por
     # Coordenador/Responsável ao final da página — nada fica fora do filtro.
+    # Coordenador/Responsável vazios = sem filtro (todos).
     df = apply_dates(df0, ini, fim)
-    if coord_f != "Todos":
-        df = df[df["coord_display"] == coord_f]
-    if resp_f != "Todos":
-        df = df[df["resp"] == resp_f]
+    if coord_f:
+        df = df[df["coord_display"].isin(coord_f)]
+    if resp_f:
+        df = df[df["resp"].isin(resp_f)]
     if tipo_f != "Todos":
         df = df[df["tipo"] == tipo_f]
     if proc_f:
@@ -1056,17 +1123,17 @@ def page_coordenacao(registros, ref):
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     ini = c1.date_input("Data Início", value=None, key="c_ini")
     fim = c2.date_input("Data Fim", value=None, key="c_fim")
-    coord_f = c3.selectbox("Coordenador", ["Todos"] + sorted(df0["coord_display"].dropna().unique().tolist()), key="c_coord")
-    resp_f = c4.selectbox("Responsável", ["Todos"] + sorted(df0["resp"].dropna().unique().tolist()), key="c_resp")
+    coord_f = c3.multiselect("Coordenador", sorted(df0["coord_display"].dropna().unique().tolist()), key="c_coord")
+    resp_f = c4.multiselect("Responsável", sorted(df0["resp"].dropna().unique().tolist()), key="c_resp")
     tipos = ["Todos"] + [t for t in TIPOS_CONHECIDOS if t in df0["tipo"].unique()]
     tipo_f = c5.selectbox("Tipo", tipos, key="c_tipo")
     proc_f = c6.text_input("Buscar processo / cliente", key="c_proc")
 
     df = apply_dates(df0, ini, fim)
-    if coord_f != "Todos":
-        df = df[df["coord_display"] == coord_f]
-    if resp_f != "Todos":
-        df = df[df["resp"] == resp_f]
+    if coord_f:
+        df = df[df["coord_display"].isin(coord_f)]
+    if resp_f:
+        df = df[df["resp"].isin(resp_f)]
     if tipo_f != "Todos":
         df = df[df["tipo"] == tipo_f]
     if proc_f:
@@ -1121,16 +1188,16 @@ def page_auditoria(registros, ref):
     c1, c2, c3, c4 = st.columns(4)
     ini = c1.date_input("Data Início", value=None, key="a_ini")
     fim = c2.date_input("Data Fim", value=None, key="a_fim")
-    coord_f = c3.selectbox("Coordenador", ["Todos"] + sorted(df0["coord_display"].dropna().unique().tolist()), key="a_coord")
-    resp_f = c4.selectbox("Responsável", ["Todos"] + sorted(df0["resp"].dropna().unique().tolist()), key="a_resp")
+    coord_f = c3.multiselect("Coordenador", sorted(df0["coord_display"].dropna().unique().tolist()), key="a_coord")
+    resp_f = c4.multiselect("Responsável", sorted(df0["resp"].dropna().unique().tolist()), key="a_resp")
     inc_types = sorted({t.strip() for r in inc_all["incons"] for t in r.split(";") if t.strip()})
     ti_f = st.selectbox("Tipo de Inconsistência", ["Todas"] + inc_types, key="a_tipo")
 
     inc = apply_dates(inc_all, ini, fim)
-    if coord_f != "Todos":
-        inc = inc[inc["coord_display"] == coord_f]
-    if resp_f != "Todos":
-        inc = inc[inc["resp"] == resp_f]
+    if coord_f:
+        inc = inc[inc["coord_display"].isin(coord_f)]
+    if resp_f:
+        inc = inc[inc["resp"].isin(resp_f)]
     if ti_f != "Todas":
         inc = inc[inc["incons"].str.contains(re.escape(ti_f), na=False)]
 
@@ -1270,28 +1337,42 @@ def page_admin():
     st.success(f"✅ {fmt_num(len(df))} linhas · {fmt_num(len(registros))} no recorte (DU ≤ {DU_LIMIT})")
     st.caption(
         f"Transparência da carga · {fmt_num(stats['fora_recorte'])} atividades futuras (DU > {DU_LIMIT}) fora do painel "
-        f"· {fmt_num(stats['sem_data'])} sem data de conclusão · {fmt_num(stats['duplicatas'])} duplicatas removidas. "
+        f"· {fmt_num(stats['sem_data'])} sem data de conclusão · {fmt_num(stats['duplicatas'])} duplicatas removidas "
+        f"· {fmt_num(stats['nao_importados'])} não importados por escolha manual. "
         "Nenhum prazo do recorte é descartado silenciosamente.")
 
     # ---- Seção 8 · Responsáveis sem coordenador — seleção manual na carga ----
-    coord_overrides = {}
+    coord_overrides, resp_corrections, resp_excluir = {}, {}, set()
     if sem_coord_map:
         st.markdown('<div class="ig-sec">2 · Responsáveis sem coordenador</div>', unsafe_allow_html=True)
-        st.warning(f"{len(sem_coord_map)} responsável(is) sem coordenador mapeado. "
-                   "Selecione o coordenador de cada um ou mantenha sem coordenador (fica fora do painel público). "
-                   "O vínculo escolhido é salvo automaticamente para as próximas cargas.")
-        opcoes = ["(manter sem coordenador)"] + sorted(COORD_MAP.keys())
+        st.warning(f"{len(sem_coord_map)} responsável(is) sem coordenador mapeado. Para cada um, escolha um "
+                   "coordenador, corrija o nome (se for grafia divergente de alguém já cadastrado) ou marque "
+                   "para não importar. A escolha é salva automaticamente para as próximas cargas.")
+        opcoes = ["(manter sem coordenador)", "🚫 Não importar"] + sorted(COORD_MAP.keys())
         for resp, qtd in sorted(sem_coord_map.items(), key=lambda x: -x[1]):
-            cA, cB = st.columns([2, 2])
+            cA, cB, cC = st.columns([2, 1.6, 1.6])
             cA.markdown(f"**{resp}** · {qtd} registro(s)")
-            escolha = cB.selectbox("Coordenador", opcoes, key=f"sc_{resp}", label_visibility="collapsed")
+            nome_corrigido = cB.text_input("Corrigir nome", key=f"nm_{resp}", placeholder="Nome correto (opcional)",
+                                           label_visibility="collapsed").strip()
+            escolha = cC.selectbox("Coordenador", opcoes, key=f"sc_{resp}", label_visibility="collapsed")
+            if escolha == "🚫 Não importar":
+                resp_excluir.add(resp)
+                continue
+            nome_final = resp
+            if nome_corrigido and nome_corrigido != resp:
+                resp_corrections[resp] = nome_corrigido
+                nome_final = nome_corrigido
             if escolha != "(manter sem coordenador)":
-                coord_overrides[resp] = escolha
-        if coord_overrides:
+                coord_overrides[nome_final] = escolha
+        if coord_overrides or resp_corrections or resp_excluir:
             # Grava o aprendizado (vale para esta e para todas as próximas cargas — §8)
             learn_coord_overrides(coord_overrides)
-            # Reprocessa aplicando as vinculações escolhidas nesta carga
-            registros, sem_coord_map, stats = construir_registros(df, today, coord_overrides=coord_overrides)
+            learn_resp_corrections(resp_corrections)
+            learn_resp_excluir(resp_excluir)
+            # Reprocessa aplicando as escolhas desta carga
+            registros, sem_coord_map, stats = construir_registros(
+                df, today, coord_overrides=coord_overrides,
+                resp_corrections=resp_corrections, resp_excluir=resp_excluir)
 
     # ---- Estatísticas da carga ----
     st.markdown('<div class="ig-sec">Panorama da carga</div>', unsafe_allow_html=True)
