@@ -15,7 +15,7 @@ CONSTANTES abaixo.
 import streamlit as st
 import pandas as pd
 import numpy as np
-import json, re, io, os, base64
+import json, re, io, os, base64, unicodedata
 from datetime import datetime, date
 
 import openpyxl
@@ -228,6 +228,27 @@ def extract_aud(desc):
     return None
 
 
+def proximo_dia_util(ref):
+    """Próximo dia útil após `ref` — usado quando a descrição não traz uma
+    data FATAL/AUD explícita e a Conclusão prevista representa o D-1
+    (o dia de agir), não a data fatal em si."""
+    d = np.busday_offset(np.datetime64(ref.strftime("%Y-%m-%d"), "D"), 1,
+                         roll="forward", holidays=HOLIDAYS_NP)
+    return date.fromisoformat(str(d))
+
+
+def _sem_acento(s):
+    nfd = unicodedata.normalize("NFD", str(s or "").upper())
+    return "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+
+
+def tem_termo_julgamento(desc):
+    """Descrições de acompanhamento de julgamento não têm data fatal — ficam
+    sempre "dentro do prazo", independente de qualquer data cadastrada."""
+    d = _sem_acento(desc)
+    return "AUDIENCIA DE JULGAMENTO" in d or "ACOMPANHAR JULGAMENTO" in d
+
+
 def check_incons(tipo, desc, conclusao, fatal, aud):
     """Regras de validação da seção 15. Retorna alertas separados por '; '."""
     issues = []
@@ -254,10 +275,10 @@ def check_incons(tipo, desc, conclusao, fatal, aud):
 
 
 def get_row_color(du, tipo):
-    """Cor da linha (seção 13), em ordem de prioridade. Usado em tabelas e Excel
-    (fora da Auditoria — que tem sua própria cor fixa para inconsistências)."""
-    if tipo in ("AUDIÊNCIA DE JULGAMENTO", "ACOMPANHAR JULGAMENTO"):
-        return CLR_VERDE, "000000"                                   # P2 · verde
+    """Cor da linha (seção 13). Usado em tabelas e Excel (fora da Auditoria —
+    que tem sua própria cor fixa para inconsistências). Descrições de
+    acompanhamento de julgamento já chegam aqui com "du" forçado para verde
+    (ver construir_registros / tem_termo_julgamento)."""
     if du is None:
         return None, None
     if du < 0:
@@ -361,19 +382,34 @@ def construir_registros(df, today, coord_overrides=None):
         if not conclusao:
             stats["sem_data"] += 1
             continue
-        du = busdays(today, conclusao)
+
+        tipo = normalizar_tipo(_get(row, *TIPO_COLS))   # seção 12 (lê "Tipo - Subtipo" ou "Tipo")
+        desc = _get(row, "Descrição")
+        fatal = extract_fatal(desc)
+        aud = extract_aud(desc)
+
+        # Para "Prazo", a Conclusão prevista é o D-1 (dia de agir), não a data
+        # fatal em si — a data fatal real vem da descrição (FATAL:/AUD:) ou,
+        # na ausência dela, é o próximo dia útil após a Conclusão prevista.
+        # Acompanhamento de julgamento não tem data fatal: fica sempre dentro
+        # do prazo. Para os demais tipos, a Conclusão prevista já é a data.
+        forcar_dentro = tipo == "Prazo" and tem_termo_julgamento(desc)
+        if forcar_dentro:
+            du = DU_LIMIT + 1
+        elif tipo == "Prazo":
+            du = busdays(today, fatal or aud or proximo_dia_util(conclusao))
+        else:
+            du = busdays(today, conclusao)
         if du is None:
             stats["sem_data"] += 1
             continue
-        if du > DU_LIMIT:                               # seção 3 / 18-H — fora do horizonte (futuro)
+        if not forcar_dentro and du > DU_LIMIT:         # seção 3 / 18-H — fora do horizonte (futuro)
             stats["fora_recorte"] += 1
             continue
 
         id_ = _get(row, "Id")
         pasta = _get(row, "Pasta")
         processo = pasta if pasta else id_              # seção 5
-        tipo = normalizar_tipo(_get(row, *TIPO_COLS))   # seção 12 (lê "Tipo - Subtipo" ou "Tipo")
-        desc = _get(row, "Descrição")
         resp = resolver_responsavel(row)                # seção 6
 
         # dedup: Id + Conclusão + Tipo + Responsável (seção 3)
@@ -389,8 +425,6 @@ def construir_registros(df, today, coord_overrides=None):
             sem_coord_map[resp] = sem_coord_map.get(resp, 0) + 1
         coord_display = COORD_DISPLAY.get(coord_raw, coord_raw)
 
-        fatal = extract_fatal(desc)
-        aud = extract_aud(desc)
         incons = check_incons(tipo, desc, conclusao, fatal, aud)
 
         cliente = _get(row, "Cliente")
@@ -750,7 +784,7 @@ def _agg_prazos_por_responsavel(active_df, tipo_filter):
         o = agg.setdefault(k, {"resp": k, "coord": r["coord_display"], "total": 0,
                                "d1": 0, "fatal": 0, "venc": 0, "dentro": 0})
         o["total"] += 1
-        du = r["du_efetivo"]
+        du = r["du"]
         if du == 1:
             o["d1"] += 1
         elif du == 0:
@@ -872,25 +906,7 @@ def render_tabelas_prazos(active_df, tipo_filter):
 # ════════════════════════════════════════════════════════════════════════════
 # FILTROS COMPARTILHADOS
 # ════════════════════════════════════════════════════════════════════════════
-def calc_du_efetivo(row, hoje):
-    """
-    DU pela "data fatal subjacente" (seção 14 do manual): linhas laranja (com
-    inconsistência) podem ter a Conclusão Prevista desatualizada em relação à
-    data FATAL/AUD real da descrição (é justamente essa divergência que gera a
-    Regra 1 de inconsistência). Para classificar em D-1/Fatal/Vencido/Dentro do
-    Prazo, usa-se a data real extraída da descrição quando ela existir; senão,
-    cai para o DU normal (baseado na Conclusão Prevista).
-    """
-    if row.get("incons") and hoje is not None:
-        ref = extract_fatal(row.get("desc")) or extract_aud(row.get("desc"))
-        if ref:
-            d = busdays(hoje, ref)
-            if d is not None:
-                return d
-    return row.get("du")
-
-
-def base_df(registros, hoje=None):
+def base_df(registros):
     """DataFrame público: sem coordenações ocultas, sem responsável vazio/ausente.
     Prazos sem responsável ficam de fora de toda tela/gráfico/indicador (mas
     continuam armazenados em dados_publicados.json)."""
@@ -901,13 +917,12 @@ def base_df(registros, hoje=None):
     df = df[df["resp"].notna() & (df["resp"] != "") & (df["resp"] != "nan") &
             (df["resp"] != "(Sem responsável)")]
     df = df[~df["coord"].isin(HIDDEN_COORDS)]                       # seção 11
-    df["du_efetivo"] = df.apply(lambda r: calc_du_efetivo(r, hoje), axis=1)
     return df
 
 
-def public_df(registros, hoje=None):
+def public_df(registros):
     """Recorte público: exclui EXCLUDED_SET (§10). Coordenações ocultas já saem em base_df (§11)."""
-    df = base_df(registros, hoje)
+    df = base_df(registros)
     if df.empty:
         return df
     return df[~df["resp"].isin(EXCLUDED_SET)]                       # seção 10
@@ -921,7 +936,7 @@ def apply_dates(df, ini, fim):
     return df
 
 
-# Legenda/situação do prazo — mesma lógica de du_efetivo usada nos indicadores
+# Legenda/situação do prazo — mesma lógica de "du" usada nos indicadores
 # e nas tabelas Prazos por Coordenador/Responsável (seção 14).
 STATUS_OPCOES = ["No prazo", "Amanhã (D-1)", "Vence hoje", "Vencido / Pendente"]
 
@@ -931,13 +946,13 @@ def apply_status(df, status_f):
         return df
     cond = pd.Series(False, index=df.index)
     if "No prazo" in status_f:
-        cond |= df["du_efetivo"] > 1
+        cond |= df["du"] > 1
     if "Amanhã (D-1)" in status_f:
-        cond |= df["du_efetivo"] == 1
+        cond |= df["du"] == 1
     if "Vence hoje" in status_f:
-        cond |= df["du_efetivo"] == 0
+        cond |= df["du"] == 0
     if "Vencido / Pendente" in status_f:
-        cond |= df["du_efetivo"] < 0
+        cond |= df["du"] < 0
     return df[cond]
 
 
@@ -955,7 +970,7 @@ def metric_items(df):
 
 def page_geral(registros, ref):
     render_header("Portal de Gestão de Prazos", "Visão Geral", ref=ref)
-    df0 = public_df(registros, hoje=parse_date(ref))
+    df0 = public_df(registros)
     if df0.empty:
         st.info("Nenhum dado disponível. Publique uma planilha na Área Administrativa.")
         return
@@ -994,9 +1009,9 @@ def page_geral(registros, ref):
         chart_bar_h(top, "Qtd", "resp", WINE)
     else:  # Prioridades
         s = lambda cond: fmt_num(len(df[cond]))
-        tiles = [("Vencidos", s(df.du_efetivo < 0), "#FFDDB3", "#8A4B12", "pendentes de baixa"),
-                 ("Vencem hoje", s(df.du_efetivo == 0), "#FADFE3", "#8E1220", "prazo fatal"),
-                 ("Amanhã (D-1)", s(df.du_efetivo == 1), "#FAEFC9", "#6b5410", "agir hoje"),
+        tiles = [("Vencidos", s(df.du < 0), "#FFDDB3", "#8A4B12", "pendentes de baixa"),
+                 ("Vencem hoje", s(df.du == 0), "#FADFE3", "#8E1220", "prazo fatal"),
+                 ("Amanhã (D-1)", s(df.du == 1), "#FAEFC9", "#6b5410", "agir hoje"),
                  ("Total pendente", fmt_num(len(df)), "#F6DBDD", "#651823", "no recorte atual")]
         cols = st.columns(4)
         for i, (lb, v, bg, fg, dsc) in enumerate(tiles):
@@ -1044,7 +1059,7 @@ def page_geral(registros, ref):
 def page_coordenacao(registros, ref):
     render_header("Controladoria · Equipes", "Por Coordenação",
                   sub="Distribuição e detalhamento das pendências por responsável")
-    df0 = public_df(registros, hoje=parse_date(ref))
+    df0 = public_df(registros)
     if df0.empty:
         st.info("Nenhum dado disponível.")
         return
