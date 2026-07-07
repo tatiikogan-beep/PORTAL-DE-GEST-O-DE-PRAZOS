@@ -975,21 +975,32 @@ def page_geral(registros, ref):
         st.info("Nenhum dado disponível. Publique uma planilha na Área Administrativa.")
         return
 
-    c1, c2, c3, c4 = st.columns([1, 1, 1.4, 1.4])
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     ini = c1.date_input("Data Início", value=None, key="g_ini")
     fim = c2.date_input("Data Fim", value=None, key="g_fim")
     coords = ["Todos"] + sorted(df0["coord_display"].dropna().unique().tolist())
     coord_f = c3.selectbox("Coordenador", coords, key="g_coord")
+    resps = ["Todos"] + sorted(df0["resp"].dropna().unique().tolist())
+    resp_f = c4.selectbox("Responsável", resps, key="g_resp")
     tipos = ["Todos"] + [t for t in TIPOS_CONHECIDOS if t in df0["tipo"].unique()]
-    tipo_f = c4.selectbox("Tipo", tipos, key="g_tipo")
+    tipo_f = c5.selectbox("Tipo", tipos, key="g_tipo")
+    proc_f = c6.text_input("Buscar processo / cliente", key="g_proc")
 
     layout = st.radio("Layout", ["Panorama", "Prioridades"], horizontal=True, key="g_layout")
 
+    # Filtro único: vale para Panorama/Prioridades E para as tabelas Prazos por
+    # Coordenador/Responsável ao final da página — nada fica fora do filtro.
     df = apply_dates(df0, ini, fim)
     if coord_f != "Todos":
         df = df[df["coord_display"] == coord_f]
+    if resp_f != "Todos":
+        df = df[df["resp"] == resp_f]
     if tipo_f != "Todos":
         df = df[df["tipo"] == tipo_f]
+    if proc_f:
+        q = proc_f.lower()
+        df = df[df["processo"].str.lower().str.contains(q, na=False) |
+                df["cliente"].str.lower().str.contains(q, na=False)]
 
     if layout == "Panorama":
         cards_row(metric_items(df), 7)
@@ -1029,31 +1040,9 @@ def page_geral(registros, ref):
             chart_bar_h(top, "Qtd", "resp", WINE)
 
     # ---- Prazos por Coordenador / por Responsável (seção 14) ----
-    # Bloco de filtros próprio, idêntico ao que existia na aba Por Coordenação,
-    # independente dos filtros de Panorama/Prioridades acima.
+    # Usa o mesmo filtro único da página — sem bloco de filtros separado.
     st.markdown('<div class="ig-sec">Prazos por Coordenador e por Responsável</div>', unsafe_allow_html=True)
-    pc1, pc2, pc3, pc4, pc5, pc6 = st.columns(6)
-    p_ini = pc1.date_input("Data Início", value=None, key="g2_ini")
-    p_fim = pc2.date_input("Data Fim", value=None, key="g2_fim")
-    p_coord_f = pc3.selectbox("Coordenador", ["Todos"] + sorted(df0["coord_display"].dropna().unique().tolist()), key="g2_coord")
-    p_resp_f = pc4.selectbox("Responsável", ["Todos"] + sorted(df0["resp"].dropna().unique().tolist()), key="g2_resp")
-    p_tipos = ["Todos"] + [t for t in TIPOS_CONHECIDOS if t in df0["tipo"].unique()]
-    p_tipo_f = pc5.selectbox("Tipo", p_tipos, key="g2_tipo")
-    p_proc_f = pc6.text_input("Buscar processo / cliente", key="g2_proc")
-
-    pdf = apply_dates(df0, p_ini, p_fim)
-    if p_coord_f != "Todos":
-        pdf = pdf[pdf["coord_display"] == p_coord_f]
-    if p_resp_f != "Todos":
-        pdf = pdf[pdf["resp"] == p_resp_f]
-    if p_tipo_f != "Todos":
-        pdf = pdf[pdf["tipo"] == p_tipo_f]
-    if p_proc_f:
-        q = p_proc_f.lower()
-        pdf = pdf[pdf["processo"].str.lower().str.contains(q, na=False) |
-                  pdf["cliente"].str.lower().str.contains(q, na=False)]
-
-    render_tabelas_prazos(pdf, p_tipo_f)
+    render_tabelas_prazos(df, tipo_f)
 
 
 def page_coordenacao(registros, ref):
