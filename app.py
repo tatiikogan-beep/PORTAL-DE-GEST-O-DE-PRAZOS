@@ -272,10 +272,12 @@ def tem_termo_julgamento(desc):
 
 
 def check_incons(tipo, desc, conclusao, fatal, aud):
-    """Regras de validação da seção 15. Retorna alertas separados por '; '."""
+    """Regras de validação da seção 15. Retorna alertas separados por '; '.
+    Atividades do tipo Diversos ficam fora da análise de inconsistências."""
+    if tipo == "Diversos":
+        return ""
     issues = []
     d = desc or ""
-    has_elab = bool(re.search(r"ELABORAR", d, re.IGNORECASE))
     ref = fatal or aud                      # FATAL tem prioridade sobre AUD
     # Regra 1 — conclusão posterior à data da descrição
     if ref and conclusao and conclusao > ref:
@@ -289,10 +291,6 @@ def check_incons(tipo, desc, conclusao, fatal, aud):
     # Regra 4 — Audiência com descrição de Prazo
     if tipo == "Audiência" and re.search(r"PRAZO.*Protocolar", d, re.IGNORECASE):
         issues.append("Tipo Audiência com descrição de Prazo")
-    # Regra 5 — Diversos com descrição de Audiência/Prazo (isenta se contém ELABORAR)
-    if tipo == "Diversos" and not has_elab:
-        if re.search(r"AUDIÊNCIA DE CONCILIAÇÃO", d, re.IGNORECASE) or re.search(r"PRAZO.*Protocolar", d, re.IGNORECASE):
-            issues.append("Tipo Diversos com descrição de Audiência/Prazo")
     return "; ".join(issues)
 
 
