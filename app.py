@@ -567,6 +567,22 @@ def push_to_github(token, repo_name, file_path, content, commit_msg):
         return False, str(e)
 
 
+def delete_from_github(token, repo_name, file_path, commit_msg):
+    """Remove o arquivo publicado também no GitHub (usado pelo Limpar Base).
+    Sem isso, uma limpeza feita só localmente é desfeita assim que o app
+    reinicia/reimplanta, pois o container volta a clonar a última versão
+    commitada do repositório (seção 'Manutenção da base')."""
+    try:
+        from github import Github
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        existing = repo.get_contents(file_path)
+        repo.delete_file(file_path, commit_msg, existing.sha)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # EXPORTAÇÃO EXCEL / CSV (seção 13)
 # ════════════════════════════════════════════════════════════════════════════
@@ -1281,8 +1297,9 @@ def page_admin():
                 'margin-bottom:16px;font-size:12.5px;color:#8E6E1C"><b>Área restrita.</b> '
                 'Uso exclusivo da equipe de Controladoria Jurídica.</div>', unsafe_allow_html=True)
 
-    if st.session_state.pop("base_limpa_msg", False):
-        st.success("✅ Base de dados limpa. Você já pode importar uma nova planilha.")
+    base_limpa_msg = st.session_state.pop("base_limpa_msg", None)
+    if base_limpa_msg:
+        st.success(f"{base_limpa_msg} Você já pode importar uma nova planilha.")
 
     pub = load_published()
     if pub.get("publicado_em"):
@@ -1297,11 +1314,20 @@ def page_admin():
         st.warning(
             f"⚠️ Isso vai excluir **todos os {fmt_num(pub['total'])} registros importados** atualmente publicados. "
             "Coordenadores, usuários e demais configurações do sistema não são afetados. Essa ação não pode ser desfeita.")
+        gh_token_del = st.text_input(
+            "GitHub Token (opcional)", type="password", key="gh_token_limpar",
+            help="Sem o token, a limpeza só vale para esta sessão do app: se o container reiniciar "
+                 "(ex.: o app 'dormir' por inatividade ou uma nova implantação), os dados voltam ao "
+                 "último estado salvo no repositório. Preencha para tornar a limpeza definitiva.")
         cc1, cc2 = st.columns([1, 1])
         if cc1.button("Confirmar exclusão", type="primary"):
             clear_published()
+            msg = "✅ Base local limpa."
+            if gh_token_del:
+                ok, err = delete_from_github(gh_token_del, GITHUB_REPO, DATA_FILE, "chore: limpar base de prazos")
+                msg += " GitHub ✓" if ok else f" ⚠️ GitHub falhou: {err}"
             st.session_state.confirmar_limpeza_base = False
-            st.session_state.base_limpa_msg = True
+            st.session_state.base_limpa_msg = msg
             st.rerun()
         if cc2.button("Cancelar"):
             st.session_state.confirmar_limpeza_base = False
@@ -1338,6 +1364,12 @@ def page_admin():
         f"· {fmt_num(stats['sem_data'])} sem data de conclusão · {fmt_num(stats['duplicatas'])} duplicatas removidas "
         f"· {fmt_num(stats['nao_importados'])} não importados por escolha manual. "
         "Nenhum prazo do recorte é descartado silenciosamente.")
+    soma_contas = len(registros) + sum(stats.values())
+    st.caption(
+        f"Conferência linha a linha: {fmt_num(len(df))} linhas na planilha = {fmt_num(len(registros))} no recorte "
+        f"+ {fmt_num(stats['fora_recorte'])} fora do horizonte + {fmt_num(stats['sem_data'])} sem data "
+        f"+ {fmt_num(stats['duplicatas'])} duplicatas + {fmt_num(stats['nao_importados'])} não importados "
+        f"= {fmt_num(soma_contas)}" + (" ✅ bate certinho." if soma_contas == len(df) else " ⚠️ não bateu — avise a TI."))
 
     # ---- Seção 8 · Responsáveis sem coordenador — seleção manual na carga ----
     coord_overrides, resp_corrections, resp_excluir = {}, {}, set()
@@ -1395,7 +1427,10 @@ def page_admin():
     p1, p2 = st.columns([2, 1])
     versao = p1.text_input("Identificação da carga", value=f"{today.strftime('%d/%m/%Y')} — Carga diária (Geral Pendentes)")
     gh_token = p2.text_input("GitHub Token (opcional)", type="password",
-                             help="Garante a persistência dos dados no repositório")
+                             help="Sem o token, esta publicação só vale para esta sessão do app: se o "
+                                  "container reiniciar (app 'dormir' por inatividade, nova implantação etc.), "
+                                  "os dados voltam ao último estado salvo no repositório. Preencha para que "
+                                  "esta carga sobreviva a reinícios do app.")
     if st.button("🚀 Publicar no painel", type="primary"):
         with st.spinner("Publicando…"):
             data = save_published(registros, versao, today.strftime("%d/%m/%Y"))
