@@ -106,6 +106,15 @@ GITHUB_REPO = "tatiikogan-beep/Gestao-Prazos-IGSA"
 
 DATA_FILE = "dados_publicados.json"
 
+
+def saved_gh_token():
+    """Token salvo nos Secrets do Streamlit Cloud (Manage app → Settings → Secrets,
+    chave GITHUB_TOKEN). Evita ter que colar o token manualmente a cada carga/limpeza."""
+    try:
+        return st.secrets.get("GITHUB_TOKEN", "")
+    except Exception:
+        return ""
+
 # Vínculos responsável→coordenador aprendidos na Área Administrativa (seção 8):
 # quando alguém sem coordenador mapeado recebe um coordenador manualmente, o
 # vínculo é gravado aqui e passa a valer para todas as cargas seguintes.
@@ -1314,11 +1323,17 @@ def page_admin():
         st.warning(
             f"⚠️ Isso vai excluir **todos os {fmt_num(pub['total'])} registros importados** atualmente publicados. "
             "Coordenadores, usuários e demais configurações do sistema não são afetados. Essa ação não pode ser desfeita.")
-        gh_token_del = st.text_input(
-            "GitHub Token (opcional)", type="password", key="gh_token_limpar",
-            help="Sem o token, a limpeza só vale para esta sessão do app: se o container reiniciar "
-                 "(ex.: o app 'dormir' por inatividade ou uma nova implantação), os dados voltam ao "
-                 "último estado salvo no repositório. Preencha para tornar a limpeza definitiva.")
+        token_salvo = saved_gh_token()
+        if token_salvo:
+            gh_token_del = token_salvo
+            st.caption("🔒 Token do GitHub configurado nos Secrets do app — a limpeza será salva automaticamente.")
+        else:
+            gh_token_del = st.text_input(
+                "GitHub Token (opcional)", type="password", key="gh_token_limpar",
+                help="Sem o token, a limpeza só vale para esta sessão do app: se o container reiniciar "
+                     "(ex.: o app 'dormir' por inatividade ou uma nova implantação), os dados voltam ao "
+                     "último estado salvo no repositório. Preencha para tornar a limpeza definitiva, ou "
+                     "configure GITHUB_TOKEN nos Secrets do app para não precisar preencher toda vez.")
         cc1, cc2 = st.columns([1, 1])
         if cc1.button("Confirmar exclusão", type="primary"):
             clear_published()
@@ -1426,11 +1441,17 @@ def page_admin():
     st.caption("Ao publicar, o painel passa a exibir esta carga para toda a equipe.")
     p1, p2 = st.columns([2, 1])
     versao = p1.text_input("Identificação da carga", value=f"{today.strftime('%d/%m/%Y')} — Carga diária (Geral Pendentes)")
-    gh_token = p2.text_input("GitHub Token (opcional)", type="password",
-                             help="Sem o token, esta publicação só vale para esta sessão do app: se o "
-                                  "container reiniciar (app 'dormir' por inatividade, nova implantação etc.), "
-                                  "os dados voltam ao último estado salvo no repositório. Preencha para que "
-                                  "esta carga sobreviva a reinícios do app.")
+    token_salvo = saved_gh_token()
+    if token_salvo:
+        gh_token = token_salvo
+        p2.caption("🔒 Token do GitHub configurado nos Secrets do app — publicação salva automaticamente.")
+    else:
+        gh_token = p2.text_input("GitHub Token (opcional)", type="password",
+                                 help="Sem o token, esta publicação só vale para esta sessão do app: se o "
+                                      "container reiniciar (app 'dormir' por inatividade, nova implantação etc.), "
+                                      "os dados voltam ao último estado salvo no repositório. Preencha para que "
+                                      "esta carga sobreviva a reinícios do app, ou configure GITHUB_TOKEN nos "
+                                      "Secrets do app para não precisar preencher toda vez.")
     if st.button("🚀 Publicar no painel", type="primary"):
         with st.spinner("Publicando…"):
             data = save_published(registros, versao, today.strftime("%d/%m/%Y"))
