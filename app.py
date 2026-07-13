@@ -380,17 +380,25 @@ def _get(row, *names, default=""):
     return default
 
 
+def _primeiro_nome_valido(texto):
+    """'Responsável processo' e 'Envolvidos / Nome' às vezes vêm com mais de um
+    nome concatenado (ex.: "NOME A;\nNOME B"). Prioriza o primeiro nome que já
+    tenha coordenador cadastrado; se nenhum bater, usa o primeiro da lista."""
+    candidates = [n.strip() for n in re.split(r"[;,|\n]", texto) if n.strip()]
+    if not candidates:
+        return ""
+    mapped = next((c for c in candidates if c in RESP_TO_COORD), None)
+    return mapped if mapped else candidates[0]
+
+
 def resolver_responsavel(row):
     """Responsável + fallback para 'Envolvidos / Nome' (seção 6)."""
     resp = _get(row, "Responsável processo", "Responsavel processo")
     if resp:
-        return resp
+        return _primeiro_nome_valido(resp)
     env = _get(row, "Envolvidos / Nome")
     if env:
-        candidates = [n.strip() for n in re.split(r"[;,|\n]", env) if n.strip()]
-        if candidates:
-            mapped = next((c for c in candidates if c in RESP_TO_COORD), None)
-            return mapped if mapped else candidates[0]
+        return _primeiro_nome_valido(env)
     return ""
 
 
