@@ -14,15 +14,24 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-O painel abre já populado a partir de `dados_publicados.json` (carga de exemplo, ref.
-01/07/2026, gerada da planilha real em `project/uploads/`). Para carregar uma nova base,
-use **Área Administrativa → Carregar planilha → Publicar**.
+Numa cópia recém-clonada, o painel abre **sem nenhum dado publicado** — é preciso fazer
+a primeira carga em **Área Administrativa → Carregar planilha → Publicar**.
+
+`dados_publicados.json` (e os arquivos de aprendizado `coord_aprendido.json`,
+`nomes_corrigidos.json`, `responsaveis_nao_importar.json`) são **dados de uso, não
+código-fonte** — por isso ficam fora do controle de versão (`.gitignore`). Versionar
+esses arquivos na mesma branch do código fazia o app voltar à última carga commitada
+a cada redeploy (todo push de código nesta branch reinicia o container do Streamlit
+Cloud, que reclona o repositório do zero — e antes disso apagava qualquer publicação
+feita ao vivo entre uma correção e outra).
 
 ## Fluxo de dados
 
 1. **Área Administrativa** (uso interno): upload do `.xlsx` → validação automática →
    seleção manual de coordenador para responsáveis não mapeados → **Publicar** (grava
-   `dados_publicados.json` e, com token, faz commit no GitHub).
+   `dados_publicados.json` localmente e, com `GITHUB_TOKEN` configurado nos Secrets do
+   Streamlit Cloud, também no repositório `GITHUB_REPO` — importante para não perder a
+   carga caso o container seja recriado).
 2. **Painel público**: lê `dados_publicados.json` e exibe cards, gráficos, tabelas
    coloridas por prazo e a tabela **Prazos por responsável**.
 
@@ -45,7 +54,7 @@ Tudo fica no topo de `app.py`, no bloco **CONSTANTES**:
 
 ```
 app.py                     # aplicação Streamlit (dados + UI redesenhada)
-dados_publicados.json      # carga publicada (seed de exemplo)
+dados_publicados.json      # carga publicada (gerado em runtime — fora do Git)
 requirements.txt
 project/                   # bundle de design original + assets + planilhas de teste
 ```

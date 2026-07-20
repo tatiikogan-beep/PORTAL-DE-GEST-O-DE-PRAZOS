@@ -2,3 +2,12 @@ __pycache__/
 *.pyc
 .venv/
 .streamlit/secrets.toml
+
+# Dados publicados/aprendidos: são estado de uso (como um banco de dados),
+# não código-fonte. Mantê-los versionados fazia o app voltar a esta versão
+# congelada a cada redeploy de código (todo push nesta branch reinicia o
+# container do Streamlit Cloud, que reclona o repositório do zero).
+dados_publicados.json
+coord_aprendido.json
+nomes_corrigidos.json
+responsaveis_nao_importar.json
