@@ -297,8 +297,12 @@ def check_incons(tipo, desc, conclusao, fatal, aud):
         gap = busdays(ref, conclusao)
         if gap is None or gap > 1:
             issues.append(f"Conclusão posterior à data da descrição ({ref.strftime('%d/%m/%Y')})")
-    # Regra 2 — ano inválido (5+ dígitos) apenas nestes tipos
-    if tipo in ("Prazo", "Audiência", "Pauta de Julgamento", "Perícia") and re.search(r"\d{5,}", d):
+    # Regra 2 — ano com 5+ dígitos dentro de uma data (dd/mm/AAAAA), só nestes
+    # tipos. Exige o padrão de data (duas barras antes do ano) para não pegar
+    # números de processo/protocolo/registro que também têm 5+ dígitos mas
+    # não são datas (ex.: "355054-REQ", "0011212-77.2026...", nº de LO/SPU).
+    if tipo in ("Prazo", "Audiência", "Pauta de Julgamento", "Perícia") and \
+            re.search(r"\d{1,2}/\d{1,2}/\d{5,}", d):
         issues.append("Ano inválido na descrição")
     # Regra 3 — Prazo com descrição de Audiência
     if tipo == "Prazo" and re.search(r"AUDIÊNCIA DE CONCILIAÇÃO", d, re.IGNORECASE):
