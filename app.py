@@ -288,9 +288,15 @@ def check_incons(tipo, desc, conclusao, fatal, aud):
     issues = []
     d = desc or ""
     ref = fatal or aud                      # FATAL tem prioridade sobre AUD
-    # Regra 1 — conclusão posterior à data da descrição
-    if ref and conclusao and conclusao > ref:
-        issues.append(f"Conclusão posterior à data da descrição ({ref.strftime('%d/%m/%Y')})")
+    # Regra 1 — conclusão posterior à data da descrição. Não se aplica a
+    # "Pauta de Julgamento" (a data da descrição é só a sessão, não limita a
+    # conclusão). Tolera 1 dia útil de diferença: quando a data da descrição
+    # cai numa sexta-feira (ou antes de feriado), a conclusão cair no próximo
+    # dia útil (segunda-feira) é o comportamento esperado, não um erro.
+    if tipo != "Pauta de Julgamento" and ref and conclusao and conclusao > ref:
+        gap = busdays(ref, conclusao)
+        if gap is None or gap > 1:
+            issues.append(f"Conclusão posterior à data da descrição ({ref.strftime('%d/%m/%Y')})")
     # Regra 2 — ano inválido (5+ dígitos) apenas nestes tipos
     if tipo in ("Prazo", "Audiência", "Pauta de Julgamento", "Perícia") and re.search(r"\d{5,}", d):
         issues.append("Ano inválido na descrição")
