@@ -408,13 +408,19 @@ def construir_registros(df, today, coord_overrides=None, resp_corrections=None, 
     coord_overrides: {responsável: coordenador} escolhido manualmente na carga (seção 8).
     resp_corrections: {nome digitado: nome corrigido} escolhido manualmente na carga (seção 8).
     resp_excluir: {responsáveis} marcados para não importar nesta carga (seção 8).
-    Retorna (registros, sem_coord_map, stats) — sem_coord_map = {resp: qtd} não mapeados.
-    Cada registro carrega seu próprio campo "incons" (usado só pela aba Auditoria).
+    Retorna (registros, sem_coord_map, stats, registros_futuros) — sem_coord_map =
+    {resp: qtd} não mapeados. Cada registro carrega seu próprio campo "incons"
+    (usado pelas abas Auditoria e Revisão de Prazos Futuros).
+    registros_futuros: mesmos dados/regras de "registros", mas para DU > DU_LIMIT
+    (fora do recorte principal) — usado só pela aba "Revisão de Prazos Futuros"
+    (seção 19). Não altera stats/sem_coord_map/registros em nada: é somente
+    aditivo, para não interferir nas demais abas.
     """
     coord_overrides = coord_overrides or {}
     resp_corrections = resp_corrections or {}
     resp_excluir = resp_excluir or set()
     registros, seen = [], set()
+    registros_futuros, seen_futuro = [], set()
     sem_coord_map = {}
     # Transparência (nenhum registro sai silenciosamente): contadores de descartes.
     stats = {"sem_data": 0, "fora_recorte": 0, "duplicatas": 0, "nao_importados": 0}
@@ -444,9 +450,6 @@ def construir_registros(df, today, coord_overrides=None, resp_corrections=None, 
         if du is None:
             stats["sem_data"] += 1
             continue
-        if not forcar_dentro and du > DU_LIMIT:         # seção 3 / 18-H — fora do horizonte (futuro)
-            stats["fora_recorte"] += 1
-            continue
 
         id_ = _get(row, "Id")
         pasta = _get(row, "Pasta")
@@ -455,7 +458,31 @@ def construir_registros(df, today, coord_overrides=None, resp_corrections=None, 
         # Correção de grafia (persistida + desta carga) e exclusão manual
         # de importação (seção 2/8 da Área Administrativa).
         resp = NOME_CORRECTIONS.get(resp, resp_corrections.get(resp, resp))
-        if resp in NAO_IMPORTAR or resp in resp_excluir:
+        excluido_manual = resp in NAO_IMPORTAR or resp in resp_excluir
+
+        if not forcar_dentro and du > DU_LIMIT:         # seção 3 / 18-H — fora do horizonte (futuro)
+            stats["fora_recorte"] += 1
+            if excluido_manual:
+                continue
+            key_f = f"{id_}|{conclusao.isoformat()}|{tipo}|{resp}"
+            if key_f in seen_futuro:
+                continue
+            seen_futuro.add(key_f)
+            resp_disp = resp or "(Sem responsável)"
+            coord_raw = RESP_TO_COORD.get(resp, coord_overrides.get(resp, SEM_COORD))
+            coord_display = COORD_DISPLAY.get(coord_raw, coord_raw)
+            incons = check_incons(tipo, desc, conclusao, fatal, aud)
+            registros_futuros.append({
+                "id": id_, "processo": processo, "tipo": tipo, "desc": desc[:300],
+                "status": _get(row, "Status"), "resp": resp_disp,
+                "coord": coord_raw, "coord_display": coord_display,
+                "conclusao": conclusao.strftime("%d/%m/%Y"), "conclusao_iso": conclusao.isoformat(),
+                "du": du, "incons": incons,
+                "cliente": _get(row, "Cliente"), "num_proc": _get(row, "Número do processo"),
+            })
+            continue
+
+        if excluido_manual:
             stats["nao_importados"] += 1
             continue
 
@@ -486,7 +513,8 @@ def construir_registros(df, today, coord_overrides=None, resp_corrections=None, 
             "cliente": cliente, "num_proc": num_proc,
         })
     registros.sort(key=lambda r: (r["conclusao_iso"], r["resp"], r["processo"]))
-    return registros, sem_coord_map, stats
+    registros_futuros.sort(key=lambda r: (r["conclusao_iso"], r["resp"], r["processo"]))
+    return registros, sem_coord_map, stats, registros_futuros
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -496,14 +524,20 @@ def load_published():
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                # registros_futuros pode não existir em publicações anteriores a
+                # esta versão (seção 19) — sem quebrar a leitura de dados antigos.
+                data.setdefault("registros_futuros", [])
+                return data
         except Exception:
             pass
-    return {"registros": [], "publicado_em": None, "total": 0, "versao": None, "referencia": None}
+    return {"registros": [], "registros_futuros": [], "publicado_em": None, "total": 0,
+            "versao": None, "referencia": None}
 
 
-def save_published(registros, versao, today_str):
-    data = {"registros": registros, "publicado_em": datetime.now().strftime("%d/%m/%Y %H:%M"),
+def save_published(registros, versao, today_str, registros_futuros=None):
+    data = {"registros": registros, "registros_futuros": registros_futuros or [],
+            "publicado_em": datetime.now().strftime("%d/%m/%Y %H:%M"),
             "total": len(registros), "versao": versao, "referencia": today_str}
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, default=str)
@@ -1272,6 +1306,76 @@ def page_auditoria(registros, ref):
                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
+def page_futuros(registros_futuros, ref):
+    """Seção 19 · Revisão de Prazos Futuros. Mesmas regras da Auditoria
+    (check_incons, EXCLUDED_SET, HIDDEN_COORDS), mas sobre os prazos com
+    DU > DU_LIMIT (depois de hoje/D-1) — não interfere em nenhuma outra aba:
+    lê de "registros_futuros", uma lista separada de "registros"."""
+    render_header("Controladoria · Qualidade", "Revisão de Prazos Futuros",
+                  sub="Divergências de cadastro em prazos que ainda não entraram no recorte")
+    df0 = public_df(registros_futuros)
+    if df0.empty:
+        st.info("Nenhum prazo futuro disponível.")
+        return
+    inc_all = df0[df0["incons"] != ""]
+
+    c1, c2, c3, c4 = st.columns(4)
+    ini = c1.date_input("Data Início", value=None, key="f_ini")
+    fim = c2.date_input("Data Fim", value=None, key="f_fim")
+    coord_f = c3.multiselect("Coordenador", sorted(df0["coord_display"].dropna().unique().tolist()), key="f_coord")
+    resp_f = c4.multiselect("Responsável", sorted(df0["resp"].dropna().unique().tolist()), key="f_resp")
+    inc_types = sorted({t.strip() for r in inc_all["incons"] for t in r.split(";") if t.strip()})
+    ti_f = st.selectbox("Tipo de Inconsistência", ["Todas"] + inc_types, key="f_tipo")
+
+    inc = apply_dates(inc_all, ini, fim)
+    if coord_f:
+        inc = inc[inc["coord_display"].isin(coord_f)]
+    if resp_f:
+        inc = inc[inc["resp"].isin(resp_f)]
+    if ti_f != "Todas":
+        inc = inc[inc["incons"].str.contains(re.escape(ti_f), na=False)]
+
+    st.markdown('<div style="background:linear-gradient(100deg,#FBF6E7,#fff);border:1px solid #EBD58A;'
+                'border-radius:10px;padding:12px 16px;margin:6px 0 16px;font-size:13px;color:#4A423B">'
+                'Registros com divergência entre tipo, descrição e data de conclusão, entre os prazos com '
+                'data além do recorte principal (DU > ' + str(DU_LIMIT) + '). Revise com antecedência, antes '
+                'de esses prazos entrarem no painel principal.</div>', unsafe_allow_html=True)
+
+    types_count = {}
+    for r in inc["incons"]:
+        for t in r.split(";"):
+            t = t.strip()
+            if t:
+                types_count[t] = types_count.get(t, 0) + 1
+    items = [("Total", fmt_num(len(inc)), "#BE5862")] + \
+            [(t[:34], fmt_num(v), GOLD) for t, v in sorted(types_count.items(), key=lambda x: -x[1])[:4]]
+    cards_row(items, 5)
+
+    st.markdown('<div class="ig-sec">Registros com inconsistência</div>', unsafe_allow_html=True)
+    if inc.empty:
+        st.markdown('<div style="background:#E2F3E8;border:1px solid #43B26C;border-radius:10px;padding:24px;'
+                    'text-align:center;color:#1E6E3E;font-weight:500">Nenhuma inconsistência detectada nos filtros selecionados.</div>',
+                    unsafe_allow_html=True)
+    else:
+        view = pd.DataFrame({
+            "Processo": inc["processo"], "Cliente": inc["cliente"], "Tipo": inc["tipo"],
+            "Descrição": inc["desc"],
+            "Coordenador": inc["coord_display"].apply(abbrev_name), "Responsável": inc["resp"].apply(abbrev_name),
+            "Conclusão": inc["conclusao"], "Inconsistência": inc["incons"]})
+        # linhas laranja (inconsistência) — cor fixa
+        html_rows = "".join(
+            "<tr style='background:#F7E3CE;color:#7a4a1f'>" +
+            "".join(f"<td>{'' if pd.isna(v) else v}</td>" for v in r) + "</tr>"
+            for r in view.itertuples(index=False))
+        thead = "".join(f"<th>{c}</th>" for c in view.columns)
+        st.markdown(f'<div class="ig-tw" style="--h:460px"><table><thead><tr>{thead}</tr></thead>'
+                    f'<tbody>{html_rows}</tbody></table></div>', unsafe_allow_html=True)
+        st.download_button("📥 Exportar Prazos Futuros",
+                           exportar_xlsx_filtrado(inc.to_dict("records"), cols=COLS_DETAIL_AUDITORIA),
+                           "IGSA_Prazos_Futuros.xlsx",
+                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 def page_exportacao(registros, ref):
     render_header("Controladoria · Relatórios", "Central de Exportação",
                   sub="Gere planilhas por coordenação ou consolidadas")
@@ -1377,7 +1481,7 @@ def page_admin():
             if len(df) < 5:
                 st.error("❌ Arquivo com menos de 5 linhas.")
                 return
-            registros, sem_coord_map, stats = construir_registros(df, today)
+            registros, sem_coord_map, stats, registros_futuros = construir_registros(df, today)
         except Exception as e:
             st.error(f"❌ Erro ao processar: {e}")
             return
@@ -1423,7 +1527,7 @@ def page_admin():
             learn_resp_corrections(resp_corrections)
             learn_resp_excluir(resp_excluir)
             # Reprocessa aplicando as escolhas desta carga
-            registros, sem_coord_map, stats = construir_registros(
+            registros, sem_coord_map, stats, registros_futuros = construir_registros(
                 df, today, coord_overrides=coord_overrides,
                 resp_corrections=resp_corrections, resp_excluir=resp_excluir)
 
@@ -1462,7 +1566,7 @@ def page_admin():
                                       "Secrets do app para não precisar preencher toda vez.")
     if st.button("🚀 Publicar no painel", type="primary"):
         with st.spinner("Publicando…"):
-            data = save_published(registros, versao, today.strftime("%d/%m/%Y"))
+            data = save_published(registros, versao, today.strftime("%d/%m/%Y"), registros_futuros)
             msg = f"✅ {fmt_num(len(registros))} registros publicados em {data['publicado_em']}."
             if gh_token:
                 with open(DATA_FILE, encoding="utf-8") as f:
@@ -1477,7 +1581,7 @@ def page_admin():
 # NAVEGAÇÃO / MAIN
 # ════════════════════════════════════════════════════════════════════════════
 NAV_ITEMS = [("geral", "Visão Geral"), ("coord", "Por Coordenação"), ("audit", "Auditoria"),
-             ("export", "Exportação"), ("admin", "Área Administrativa")]
+             ("futuros", "Revisão de Prazos Futuros"), ("export", "Exportação"), ("admin", "Área Administrativa")]
 
 
 def render_sidebar():
@@ -1514,6 +1618,7 @@ def main():
     page = render_sidebar()
     pub = load_published()
     registros = pub.get("registros", [])
+    registros_futuros = pub.get("registros_futuros", [])
     ref = pub.get("referencia") or "01/07/2026"
 
     if page == "geral":
@@ -1522,6 +1627,8 @@ def main():
         page_coordenacao(registros, ref)
     elif page == "audit":
         page_auditoria(registros, ref)
+    elif page == "futuros":
+        page_futuros(registros_futuros, ref)
     elif page == "export":
         page_exportacao(registros, ref)
     elif page == "admin":
