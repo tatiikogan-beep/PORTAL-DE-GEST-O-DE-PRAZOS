@@ -541,6 +541,25 @@ def load_published():
                 return data
         except Exception:
             pass
+    # Arquivo local ausente — o container do Streamlit Cloud foi recriado
+    # (dormiu por inatividade, ou um novo redeploy de código clonou o
+    # repositório do zero, sem o dado publicado, que não é versionado — ver
+    # .gitignore). Se houver um GITHUB_TOKEN salvo, recupera a última
+    # publicação real do repositório de dados (GITHUB_REPO) em vez de exibir
+    # "Nenhum dado publicado" à toa: sem isso, cada vez que o app "dorme",
+    # a base publicada expira e some até alguém publicar de novo manualmente.
+    token = saved_gh_token()
+    if token:
+        content = fetch_from_github(token, GITHUB_REPO, DATA_FILE)
+        if content:
+            try:
+                data = json.loads(content)
+                data.setdefault("registros_futuros", [])
+                with open(DATA_FILE, "w", encoding="utf-8") as f:
+                    f.write(content)
+                return data
+            except Exception:
+                pass
     return {"registros": [], "registros_futuros": [], "publicado_em": None, "total": 0,
             "versao": None, "referencia": None}
 
@@ -626,6 +645,18 @@ def push_to_github(token, repo_name, file_path, content, commit_msg):
         return True, None
     except Exception as e:
         return False, str(e)
+
+
+def fetch_from_github(token, repo_name, file_path):
+    """Busca o conteúdo salvo no GitHub (usado por load_published quando o
+    arquivo local sumiu — container reiniciado/dormiu por inatividade)."""
+    try:
+        from github import Github
+        g = Github(token)
+        repo = g.get_repo(repo_name)
+        return repo.get_contents(file_path).decoded_content.decode("utf-8")
+    except Exception:
+        return None
 
 
 def delete_from_github(token, repo_name, file_path, commit_msg):
