@@ -905,8 +905,17 @@ def render_html_table(df, height=440, color_rows=True):
 
 
 # ---- Gráficos (Altair) ----
-def chart_bar_h(df_data, val_col, lbl_col, color="#7E1F2D", height=None):
+# IMPORTANTE: sempre passar `key` fixo para st.altair_chart e sempre renderizar
+# ALGO no mesmo lugar (gráfico OU placeholder), nunca um `return` silencioso.
+# Sem isso, quando um filtro ao vivo (busca, multiselect) esvazia os dados e o
+# gráfico some/reaparece entre execuções, o React perde a referência do nó do
+# Vega/Altair e a tela quebra com "Failed to execute 'removeChild' on 'Node'".
+def chart_bar_h(df_data, val_col, lbl_col, color="#7E1F2D", height=None, key=None):
+    h = height or max(200, 26 * len(df_data)) if not df_data.empty else (height or 200)
     if df_data.empty:
+        st.markdown(f'<div style="height:{h}px;display:flex;align-items:center;justify-content:center;'
+                    f'color:var(--muted);font-size:13px">Sem dados para o filtro atual.</div>',
+                    unsafe_allow_html=True)
         return
     import altair as alt
     d = df_data.copy()
@@ -919,13 +928,16 @@ def chart_bar_h(df_data, val_col, lbl_col, color="#7E1F2D", height=None):
     labels = base.mark_text(align="left", dx=5, fontSize=12, fontWeight="bold", color="#2A2420").encode(text="_f:N")
     # height fixo (ex.: para pareamento simétrico com outro gráfico) ou proporcional
     # à quantidade de linhas, para não distorcer com poucos itens.
-    st.altair_chart((bars + labels).properties(height=height or max(200, 26 * len(d)))
+    st.altair_chart((bars + labels).properties(height=h)
                     .configure_axis(grid=True, gridColor="#EDE5D4").configure_view(strokeWidth=0),
-                    use_container_width=True)
+                    use_container_width=True, key=key)
 
 
-def chart_donut(labels, values):
+def chart_donut(labels, values, key=None):
     if not values or sum(values) == 0:
+        st.markdown('<div style="height:260px;display:flex;align-items:center;justify-content:center;'
+                    'color:var(--muted);font-size:13px">Sem dados para o filtro atual.</div>',
+                    unsafe_allow_html=True)
         return
     import altair as alt
     d = pd.DataFrame({"Tipo": labels, "Qtd": values})
@@ -939,7 +951,8 @@ def chart_donut(labels, values):
     pie = base.mark_arc(innerRadius=55, outerRadius=95)
     center = alt.Chart(pd.DataFrame({"t": [f"{fmt_num(total)}"]})).mark_text(
         size=22, fontWeight="bold", color="#2A2420", font="Cormorant Garamond").encode(text="t:N")
-    st.altair_chart((pie + center).properties(height=260).configure_view(strokeWidth=0), use_container_width=True)
+    st.altair_chart((pie + center).properties(height=260).configure_view(strokeWidth=0),
+                    use_container_width=True, key=key)
 
 
 # ---- Tabela "Prazos por responsável" (seção 14) ----
@@ -1181,16 +1194,16 @@ def page_geral(registros, ref):
         ca, cb = st.columns(2)
         with ca:
             by_t = df.groupby("tipo").size().reset_index(name="q").sort_values("q", ascending=False)
-            chart_donut(by_t["tipo"].tolist(), by_t["q"].tolist())
+            chart_donut(by_t["tipo"].tolist(), by_t["q"].tolist(), key="g_donut_panorama")
         with cb:
             by_c = df.groupby("coord_display").size().reset_index(name="Pendências").sort_values("Pendências", ascending=False)
             by_c["coord_display"] = by_c["coord_display"].apply(abbrev_name)
-            chart_bar_h(by_c, "Pendências", "coord_display", WINE, height=260)
+            chart_bar_h(by_c, "Pendências", "coord_display", WINE, height=260, key="g_barcoord_panorama")
         st.markdown('<div class="ig-sec">Responsáveis com mais pendências</div>', unsafe_allow_html=True)
         top = (df.groupby("resp").size()
                .reset_index(name="Qtd").sort_values("Qtd", ascending=False).head(10))
         top["resp"] = top["resp"].apply(abbrev_name)
-        chart_bar_h(top, "Qtd", "resp", WINE)
+        chart_bar_h(top, "Qtd", "resp", WINE, key="g_bartop_panorama")
     else:  # Prioridades
         s = lambda cond: fmt_num(len(df[cond]))
         tiles = [("Vencidos", s(df.du < 0), "#FFDDB3", "#8A4B12", "pendentes de baixa"),
@@ -1205,12 +1218,12 @@ def page_geral(registros, ref):
         ca, cb = st.columns([1, 1.2])
         with ca:
             by_t = df.groupby("tipo").size().reset_index(name="q").sort_values("q", ascending=False)
-            chart_donut(by_t["tipo"].tolist(), by_t["q"].tolist())
+            chart_donut(by_t["tipo"].tolist(), by_t["q"].tolist(), key="g_donut_prioridades")
         with cb:
             top = (df.groupby("resp").size()
                    .reset_index(name="Qtd").sort_values("Qtd", ascending=False).head(10))
             top["resp"] = top["resp"].apply(abbrev_name)
-            chart_bar_h(top, "Qtd", "resp", WINE)
+            chart_bar_h(top, "Qtd", "resp", WINE, key="g_bartop_prioridades")
 
     # ---- Prazos por Coordenador / por Responsável (seção 14) ----
     # Usa o mesmo filtro único da página — sem bloco de filtros separado.
