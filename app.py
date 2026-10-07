@@ -106,6 +106,11 @@ GITHUB_REPO = "tatiikogan-beep/Gestao-Prazos-IGSA"
 
 DATA_FILE = "dados_publicados.json"
 
+# Carga separada e independente da de prazos (seção 20 · Processos Ativos —
+# usada só pelo gráfico de Processos Ativos na Visão Geral (Teste)). Arquivo
+# próprio para não interferir em nada do fluxo de prazos existente.
+PROCESSOS_FILE = "processos_publicados.json"
+
 
 def saved_gh_token():
     """Token salvo nos Secrets do Streamlit Cloud (Manage app → Settings → Secrets,
@@ -580,6 +585,66 @@ def clear_published():
         os.remove(DATA_FILE)
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# PROCESSOS ATIVOS (seção 20) — carga independente da de prazos, só para o
+# gráfico "Processos Ativos" da Visão Geral (Teste). Não usa DATA_FILE, não
+# usa construir_registros, não altera COORD_MAP/RESP_TO_COORD: é aditivo.
+# ════════════════════════════════════════════════════════════════════════════
+def processar_planilha_processos(uploaded_file):
+    """Lê a planilha de Processos (exportação LegalOne); cabeçalho na 1ª linha."""
+    df = pd.read_excel(uploaded_file, sheet_name=0, header=0)
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
+
+
+def construir_processos(df):
+    """Extrai só os campos usados pelo gráfico de Processos Ativos."""
+    processos = []
+    for _, row in df.iterrows():
+        processos.append({
+            "advogado": _get(row, "Advogado Responsável"),
+            "status": _get(row, "Status"),
+            "pasta": _get(row, "Pasta"),
+            "cliente": _get(row, "Cliente principal"),
+            "num_proc": _get(row, "Número do Processo"),
+        })
+    return processos
+
+
+def load_processos():
+    if os.path.exists(PROCESSOS_FILE):
+        try:
+            with open(PROCESSOS_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    token = saved_gh_token()
+    if token:
+        content = fetch_from_github(token, GITHUB_REPO, PROCESSOS_FILE)
+        if content:
+            try:
+                data = json.loads(content)
+                with open(PROCESSOS_FILE, "w", encoding="utf-8") as f:
+                    f.write(content)
+                return data
+            except Exception:
+                pass
+    return {"processos": [], "publicado_em": None, "total": 0, "referencia": None}
+
+
+def save_processos(processos, today_str):
+    data = {"processos": processos, "publicado_em": datetime.now().strftime("%d/%m/%Y %H:%M"),
+            "total": len(processos), "referencia": today_str}
+    with open(PROCESSOS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, default=str)
+    return data
+
+
+def clear_processos():
+    if os.path.exists(PROCESSOS_FILE):
+        os.remove(PROCESSOS_FILE)
+
+
 def learn_coord_overrides(coord_overrides):
     """Grava permanentemente os vínculos responsável→coordenador escolhidos
     manualmente na carga (seção 8), para que as próximas importações já
@@ -955,6 +1020,29 @@ def chart_donut(labels, values, key=None):
                     use_container_width=True, key=key)
 
 
+# ---- Gráfico "Processos Ativos" (seção 20 — Visão Geral (Teste)) ----
+def chart_processos_ativos(processos):
+    """Total de processos ativos geral e por advogado, a partir da carga de
+    Processos (independente da carga de prazos)."""
+    st.markdown('<div class="ig-sec">Processos Ativos</div>', unsafe_allow_html=True)
+    if not processos:
+        st.info("Nenhum processo publicado. Carregue a planilha de Processos na Área Administrativa.")
+        return
+    ativos = [p for p in processos if (p.get("status") or "").strip() == "Ativo"]
+    if not ativos:
+        st.info("Nenhum processo com status Ativo na carga publicada.")
+        return
+    cards_row([("Total de processos ativos", fmt_num(len(ativos)), WINE)], 1)
+    by_adv = {}
+    for p in ativos:
+        adv = (p.get("advogado") or "").strip() or "(Sem advogado)"
+        by_adv[adv] = by_adv.get(adv, 0) + 1
+    df_adv = pd.DataFrame({"advogado": list(by_adv.keys()), "Qtd": list(by_adv.values())})
+    df_adv = df_adv.sort_values("Qtd", ascending=False)
+    df_adv["advogado"] = df_adv["advogado"].apply(abbrev_name)
+    chart_bar_h(df_adv, "Qtd", "advogado", WINE, key="processos_ativos_bar")
+
+
 # ---- Tabela "Prazos por responsável" (seção 14) ----
 def _agg_prazos_por_responsavel(active_df, tipo_filter):
     """Agrega prazos (SOMENTE tipo Prazo) por responsável, com totais por status (manual §14)."""
@@ -1229,6 +1317,86 @@ def page_geral(registros, ref):
     # Usa o mesmo filtro único da página — sem bloco de filtros separado.
     st.markdown('<div class="ig-sec">Prazos por Coordenador e por Responsável</div>', unsafe_allow_html=True)
     render_tabelas_prazos(df, tipo_f)
+
+
+def page_geral_teste(registros, ref, processos):
+    """Seção 20 · Cópia de teste da Visão Geral, com o gráfico de Processos
+    Ativos adicionado ao final. Mesma lógica da página original em tudo o
+    mais — keys de widget com prefixo "gt_" para não colidir com "g_" da
+    Visão Geral original. Depois de validada, substitui a Visão Geral."""
+    render_header("Portal de Gestão de Prazos", "Visão Geral (Teste)", ref=ref)
+    df0 = public_df(registros)
+    if df0.empty:
+        st.info("Nenhum dado disponível. Publique uma planilha na Área Administrativa.")
+        return
+
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    ini = c1.date_input("Data Início", value=None, key="gt_ini")
+    fim = c2.date_input("Data Fim", value=None, key="gt_fim")
+    coords = sorted(df0["coord_display"].dropna().unique().tolist())
+    coord_f = c3.multiselect("Coordenador", coords, key="gt_coord")
+    resps = sorted(df0["resp"].dropna().unique().tolist())
+    resp_f = c4.multiselect("Responsável", resps, key="gt_resp")
+    tipos = ["Todos"] + [t for t in TIPOS_CONHECIDOS if t in df0["tipo"].unique()]
+    tipo_f = c5.selectbox("Tipo", tipos, key="gt_tipo")
+    proc_f = c6.text_input("Buscar processo / cliente", key="gt_proc")
+
+    layout = st.radio("Layout", ["Panorama", "Prioridades"], horizontal=True, key="gt_layout")
+
+    df = apply_dates(df0, ini, fim)
+    if coord_f:
+        df = df[df["coord_display"].isin(coord_f)]
+    if resp_f:
+        df = df[df["resp"].isin(resp_f)]
+    if tipo_f != "Todos":
+        df = df[df["tipo"] == tipo_f]
+    if proc_f:
+        q = proc_f.lower()
+        df = df[df["processo"].str.lower().str.contains(q, na=False) |
+                df["cliente"].str.lower().str.contains(q, na=False)]
+
+    if layout == "Panorama":
+        cards_row(metric_items(df), 7)
+        st.markdown('<div class="ig-sec">Composição por tipo · Distribuição por coordenador</div>', unsafe_allow_html=True)
+        ca, cb = st.columns(2)
+        with ca:
+            by_t = df.groupby("tipo").size().reset_index(name="q").sort_values("q", ascending=False)
+            chart_donut(by_t["tipo"].tolist(), by_t["q"].tolist(), key="gt_donut_panorama")
+        with cb:
+            by_c = df.groupby("coord_display").size().reset_index(name="Pendências").sort_values("Pendências", ascending=False)
+            by_c["coord_display"] = by_c["coord_display"].apply(abbrev_name)
+            chart_bar_h(by_c, "Pendências", "coord_display", WINE, height=260, key="gt_barcoord_panorama")
+        st.markdown('<div class="ig-sec">Responsáveis com mais pendências</div>', unsafe_allow_html=True)
+        top = (df.groupby("resp").size()
+               .reset_index(name="Qtd").sort_values("Qtd", ascending=False).head(10))
+        top["resp"] = top["resp"].apply(abbrev_name)
+        chart_bar_h(top, "Qtd", "resp", WINE, key="gt_bartop_panorama")
+    else:  # Prioridades
+        s = lambda cond: fmt_num(len(df[cond]))
+        tiles = [("Vencidos", s(df.du < 0), "#FFDDB3", "#8A4B12", "pendentes de baixa"),
+                 ("Vencem hoje", s(df.du == 0), "#FADFE3", "#8E1220", "prazo fatal"),
+                 ("Amanhã (D-1)", s(df.du == 1), "#FAEFC9", "#6b5410", "agir hoje"),
+                 ("Total pendente", fmt_num(len(df)), "#F6DBDD", "#651823", "no recorte atual")]
+        cols = st.columns(4)
+        for i, (lb, v, bg, fg, dsc) in enumerate(tiles):
+            cols[i].markdown(f'<div class="ig-tile" style="background:{bg};color:{fg}"><div class="tl">{lb}</div>'
+                             f'<div class="tv">{v}</div><div class="td">{dsc}</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="ig-sec">Composição por tipo · Responsáveis com mais pendências</div>', unsafe_allow_html=True)
+        ca, cb = st.columns([1, 1.2])
+        with ca:
+            by_t = df.groupby("tipo").size().reset_index(name="q").sort_values("q", ascending=False)
+            chart_donut(by_t["tipo"].tolist(), by_t["q"].tolist(), key="gt_donut_prioridades")
+        with cb:
+            top = (df.groupby("resp").size()
+                   .reset_index(name="Qtd").sort_values("Qtd", ascending=False).head(10))
+            top["resp"] = top["resp"].apply(abbrev_name)
+            chart_bar_h(top, "Qtd", "resp", WINE, key="gt_bartop_prioridades")
+
+    st.markdown('<div class="ig-sec">Prazos por Coordenador e por Responsável</div>', unsafe_allow_html=True)
+    render_tabelas_prazos(df, tipo_f)
+
+    # ---- NOVO: Processos Ativos (seção 20) — carga própria, independente da de prazos ----
+    chart_processos_ativos(processos)
 
 
 def page_coordenacao(registros, ref):
@@ -1518,6 +1686,57 @@ def page_admin():
             st.session_state.confirmar_limpeza_base = True
             st.rerun()
 
+    # ════════════════════════════════════════════════════════════════════
+    # Processos Ativos (seção 20) — carga independente da de prazos, usada
+    # só pelo gráfico da Visão Geral (Teste). Arquivo, widgets e fluxo
+    # próprios: não lê nem grava nada do que pertence aos prazos abaixo.
+    # Fica ANTES da seção "1 · Carregar planilha" de propósito: aquela
+    # seção retorna cedo (`return`) quando nenhum arquivo de prazos foi
+    # selecionado, o que deixaria esta seção inacessível se viesse depois.
+    # ════════════════════════════════════════════════════════════════════
+    st.divider()
+    st.markdown('<div class="ig-sec">Processos Ativos (carga para o gráfico — Visão Geral (Teste))</div>',
+                unsafe_allow_html=True)
+    proc_pub = load_processos()
+    token_proc = saved_gh_token()
+    if proc_pub.get("publicado_em"):
+        st.markdown(f'<div style="background:linear-gradient(90deg,#1a4731,#2E9E5B);color:#fff;padding:10px 16px;'
+                    f'border-radius:8px;margin-bottom:14px;font-size:12px">✓ Publicado em {proc_pub["publicado_em"]} · '
+                    f'{fmt_num(proc_pub["total"])} linhas</div>', unsafe_allow_html=True)
+    else:
+        st.caption("Nenhuma planilha de Processos publicada ainda.")
+
+    proc_uploaded = st.file_uploader("Selecionar planilha de Processos (exportação LegalOne · .xlsx)",
+                                     type=["xlsx", "xls"], key="proc_uploader")
+    if proc_uploaded:
+        try:
+            df_proc = processar_planilha_processos(proc_uploaded)
+            if "Advogado Responsável" not in df_proc.columns or "Status" not in df_proc.columns:
+                st.error("❌ Colunas obrigatórias ausentes: 'Advogado Responsável' e/ou 'Status'.")
+            else:
+                processos = construir_processos(df_proc)
+                qtd_ativos = sum(1 for p in processos if (p["status"] or "").strip() == "Ativo")
+                st.success(f"✅ {fmt_num(len(processos))} linhas · {fmt_num(qtd_ativos)} processos ativos")
+                if st.button("📊 Publicar processos", key="proc_publish_btn"):
+                    data = save_processos(processos, date.today().strftime("%d/%m/%Y"))
+                    msg2 = f"✅ {fmt_num(len(processos))} processos publicados em {data['publicado_em']}."
+                    if token_proc:
+                        with open(PROCESSOS_FILE, encoding="utf-8") as f:
+                            content2 = f.read()
+                        ok2, err2 = push_to_github(token_proc, GITHUB_REPO, PROCESSOS_FILE, content2,
+                                                   "chore: publicar processos ativos")
+                        msg2 += " GitHub ✓" if ok2 else f" ⚠️ GitHub falhou: {err2}"
+                    st.success(msg2)
+        except Exception as e:
+            st.error(f"❌ Erro ao processar: {e}")
+
+    if proc_pub.get("publicado_em") and st.button("🗑️ Limpar Processos", key="proc_clear_btn"):
+        clear_processos()
+        if token_proc:
+            delete_from_github(token_proc, GITHUB_REPO, PROCESSOS_FILE, "chore: limpar processos ativos")
+        st.rerun()
+    st.divider()
+
     st.markdown('<div class="ig-sec">1 · Carregar planilha</div>', unsafe_allow_html=True)
     today = st.date_input("Data de referência", value=date.today())
     uploaded = st.file_uploader("Selecionar arquivo Excel (exportação LegalOne · .xlsx)", type=["xlsx", "xls"])
@@ -1635,7 +1854,8 @@ def page_admin():
 # NAVEGAÇÃO / MAIN
 # ════════════════════════════════════════════════════════════════════════════
 NAV_ITEMS = [("geral", "Visão Geral"), ("coord", "Por Coordenação"), ("audit", "Auditoria"),
-             ("futuros", "Revisão de Prazos Futuros"), ("export", "Exportação"), ("admin", "Área Administrativa")]
+             ("futuros", "Revisão de Prazos Futuros"), ("export", "Exportação"),
+             ("geral_teste", "Visão Geral (Teste)"), ("admin", "Área Administrativa")]
 
 
 def render_sidebar():
@@ -1685,6 +1905,9 @@ def main():
         page_futuros(registros_futuros, ref)
     elif page == "export":
         page_exportacao(registros, ref)
+    elif page == "geral_teste":
+        processos = load_processos().get("processos", [])
+        page_geral_teste(registros, ref, processos)
     elif page == "admin":
         page_admin()
 
